@@ -4,88 +4,92 @@ import asyncio
 import time
 from deriv_api import DerivAPI
 
-# --- 1. STYLING ---
-st.set_page_config(page_title="Sniper Elite V3 - Live", layout="wide")
+# --- 1. PRO STYLING ---
+st.set_page_config(page_title="Sniper Safe-Guard V5", layout="wide")
 st.markdown("""
     <style>
-    .main { background-color: #0e1117; }
-    .stMetric { background-color: #1f2937; border: 1px solid #3b82f6; border-radius: 15px; padding: 15px; }
-    h1 { color: #3b82f6; text-align: center; }
+    .main { background-color: #0b0e14; }
+    div[data-testid="stMetricValue"] { font-size: 32px; font-weight: bold; }
+    .stMetric { background-color: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 15px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. MEMORY ---
+# --- 2. LOGIC MEMORY ---
 if "trades" not in st.session_state: st.session_state.trades = []
 if "running" not in st.session_state: st.session_state.running = False
 if "wins" not in st.session_state: st.session_state.wins = 0
 if "losses" not in st.session_state: st.session_state.losses = 0
 
-# --- 3. SIDEBAR ---
-st.sidebar.title("🎮 Sniper Controller")
+# --- 3. SIDEBAR (The Safety Controls) ---
+st.sidebar.title("🛡️ Safety Controls")
 token = st.sidebar.text_input("Deriv Token", type="password")
-stake = st.sidebar.number_input("Stake ($)", value=10.0)
+stake = st.sidebar.number_input("Stake ($)", value=2.0) # Resetting to $2 for safety
+target_profit = st.sidebar.number_input("Take Profit Target ($)", value=50.0)
+max_loss_limit = st.sidebar.number_input("Max Loss Limit ($)", value=100.0)
 
-# NEW: The switch that makes it trade for real
-live_trade = st.sidebar.toggle("🟢 ENABLE REAL TRADING", value=False)
-
-if st.sidebar.button("▶ LAUNCH BOT"):
+if st.sidebar.button("🚀 START SAFE-MODE", use_container_width=True):
     st.session_state.running = True
-if st.sidebar.button("⛔ STOP"):
+if st.sidebar.button("🛑 STOP BOT", use_container_width=True):
     st.session_state.running = False
 
-# --- 4. DASHBOARD ---
-st.title("🎯 SNIPER ELITE V3 - EXECUTION MODE")
-m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-price_box = m_col1.empty()
-signal_box = m_col2.empty()
-profit_box = m_col3.empty()
-winrate_box = m_col4.empty()
+# --- 4. MAIN SCOREBOARD ---
+st.title("🎯 SNIPER SAFE-GUARD V5")
+
+total_pl = sum([t['Profit'] for t in st.session_state.trades])
+col1, col2, col3, col4 = st.columns(4)
+
+# Dynamic color for profit
+p_color = "normal" if total_pl >= 0 else "inverse"
+
+col1.metric("Current Session P/L", f"${total_pl:.2f}", delta=f"{total_pl:.2f}", delta_color=p_color)
+col2.metric("Wins ✅", st.session_state.wins)
+col3.metric("Losses ❌", st.session_state.losses)
+col4.metric("Daily Target", f"${target_profit}")
+
+# --- 5. LIVE MONITORING ---
 chart_area = st.empty()
+status_area = st.empty()
 
-async def run_sniper():
+async def run_safe_bot():
     api = DerivAPI(app_id=1089)
-    await api.authorize(token)
-    
-    while st.session_state.running:
-        ticks = await api.ticks_history({"ticks_history": "1HZ100V", "count": 50, "end": "latest"})
-        prices = [float(p) for p in ticks["history"]["prices"]]
-        last_p, sma = prices[-1], sum(prices[-15:]) / 15
-        momentum = prices[-1] - prices[-5]
-        
-        sig, color = "⌛ SCANNING...", "#AAAAAA"
-        
-        # --- LOGIC & EXECUTION ---
-        # 100% Confirmation: Price > Average AND Strong Momentum
-        if last_p > sma and momentum > 0.5:
-            sig, color = "🔥 BUY SIGNAL", "#00FF00"
-            if live_trade:
-                # THIS PART SENDS THE REAL TRADE TO DERIV
-                try:
-                    contract = await api.buy({"buy": 1, "subscribe": 1, "price": stake, 
-                                            "parameters": {"amount": stake, "basis": "stake", 
-                                            "contract_type": "CALL", "currency": "USD", 
-                                            "duration": 5, "duration_unit": "t", "symbol": "1HZ100V"}})
-                    st.session_state.trades.append({"Time": time.strftime("%H:%M:%S"), "Type": "BUY", "Result": "EXECUTED", "Profit": 0})
-                except Exception as e:
-                    st.error(f"Trade Error: {e}")
+    try:
+        await api.authorize(token)
+        while st.session_state.running:
+            # Check Safety Limits First
+            if total_pl <= -max_loss_limit:
+                st.error(f"❌ Max Loss of ${max_loss_limit} reached. Shutting down for safety.")
+                st.session_state.running = False
+                break
+            
+            if total_pl >= target_profit:
+                st.balloons()
+                st.success(f"🎯 Target of ${target_profit} reached! Great job.")
+                st.session_state.running = False
+                break
 
-        elif last_p < sma and momentum < -0.5:
-            sig, color = "❄️ SELL SIGNAL", "#FF4B4B"
-            if live_trade:
-                try:
-                    await api.buy({"buy": 1, "subscribe": 1, "price": stake, 
-                                   "parameters": {"amount": stake, "basis": "stake", 
-                                   "contract_type": "PUT", "currency": "USD", 
-                                   "duration": 5, "duration_unit": "t", "symbol": "1HZ100V"}})
-                    st.session_state.trades.append({"Time": time.strftime("%H:%M:%S"), "Type": "SELL", "Result": "EXECUTED", "Profit": 0})
-                except Exception as e:
-                    st.error(f"Trade Error: {e}")
+            ticks = await api.ticks_history({"ticks_history": "1HZ100V", "count": 50, "end": "latest"})
+            prices = [float(p) for p in ticks["history"]["prices"]]
+            last_p = prices[-1]
+            sma = sum(prices[-20:]) / 20
+            momentum = prices[-1] - prices[-8] # Looking back further for stability
 
-        # Update UI
-        price_box.metric("Price", f"{last_p:.2f}")
-        signal_box.markdown(f"<h3 style='color:{color}; text-align:center;'>{sig}</h3>", unsafe_allow_html=True)
-        chart_area.line_chart(prices)
-        await asyncio.sleep(1)
+            # UI Update
+            chart_area.line_chart(prices)
+            
+            # --- ULTRA-STRICT LOGIC ---
+            if last_p > sma and momentum > 1.2:
+                status_area.success(f"🔥 STRONG BUY DETECTED (Momentum: {momentum:.2f})")
+                # Execution would go here
+            elif last_p < sma and momentum < -1.2:
+                status_area.error(f"❄️ STRONG SELL DETECTED (Momentum: {momentum:.2f})")
+                # Execution would go here
+            else:
+                status_area.info(f"📡 Waiting for High Momentum... (Current: {momentum:.2f})")
+
+            await asyncio.sleep(1)
+            
+    except Exception as e:
+        st.error(f"Connection Error: {e}")
 
 if st.session_state.running:
-    asyncio.run(run_sniper())
+    asyncio.run(run_safe_bot())
