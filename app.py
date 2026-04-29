@@ -3,11 +3,10 @@ import pandas as pd
 import asyncio
 import time
 import requests
-import json
 from deriv_api import DerivAPI
 
 # --- 1. UI STYLING ---
-st.set_page_config(page_title="Slimmy Pro V17.0", layout="centered") 
+st.set_page_config(page_title="Slimmy Pro V17.1", layout="centered") 
 st.markdown("""
     <style>
     .main { background-color: #041a12; }
@@ -40,10 +39,10 @@ if "running" not in st.session_state: st.session_state.running = False
 if "wins" not in st.session_state: st.session_state.wins = 0
 if "losses" not in st.session_state: st.session_state.losses = 0
 if "live_bal" not in st.session_state: st.session_state.live_bal = 0.0
-if "user_db" not in st.session_state: st.session_state.user_db = {} # Simple database
+if "user_db" not in st.session_state: st.session_state.user_db = {} 
 
 # --- 4. HEADER ---
-st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO</h2><p style='color:#8cc63f; margin:0; font-size:12px;'>V17.0 MEMBERSHIP MODE</p></div>", unsafe_allow_html=True)
+st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO</h2><p style='color:#8cc63f; margin:0; font-size:12px;'>V17.1 FULL ACCOUNT SYNC</p></div>", unsafe_allow_html=True)
 
 # Math
 total_pl = sum([t['Profit'] for t in st.session_state.trades])
@@ -79,11 +78,11 @@ if st.session_state.trades:
 else:
     st.info("Please Login to begin your round.")
 
-# --- 6. SIDEBAR & USER CENTER ---
+# --- 6. SIDEBAR & USER CENTER (FIXED) ---
 st.sidebar.title("👥 User Center")
 menu = st.sidebar.radio("Select Action", ["Login", "Register"])
 
-v_bot = "8559067530:AAFN4-0OUAGq1ckAU0Gzm8xMe6Wg0DiQDpo" # Default bot
+v_bot = ""
 v_cid = ""
 v_deriv = ""
 
@@ -91,11 +90,21 @@ if menu == "Register":
     st.sidebar.subheader("Create Account")
     new_user = st.sidebar.text_input("New Username")
     new_pass = st.sidebar.text_input("New Password", type="password")
-    reg_deriv = st.sidebar.text_input("Your Deriv Token")
+    reg_bot = st.sidebar.text_input("Your Telegram Bot Token") # ADDED THIS
     reg_cid = st.sidebar.text_input("Your Telegram Chat ID")
-    if st.sidebar.button("💾 Register"):
-        st.session_state.user_db[new_user] = {"pass": new_pass, "deriv": reg_deriv, "cid": reg_cid}
-        st.sidebar.success("✅ Registered! Switch to Login tab.")
+    reg_deriv = st.sidebar.text_input("Your Deriv Token")
+    
+    if st.sidebar.button("💾 Register Account"):
+        if new_user and new_pass:
+            st.session_state.user_db[new_user] = {
+                "pass": new_pass, 
+                "bot": reg_bot, 
+                "cid": reg_cid, 
+                "deriv": reg_deriv
+            }
+            st.sidebar.success("✅ Registered! You can now Login.")
+        else:
+            st.sidebar.error("Username and Password are required!")
 
 elif menu == "Login":
     st.sidebar.subheader("Account Login")
@@ -104,6 +113,7 @@ elif menu == "Login":
     
     if username in st.session_state.user_db:
         if st.session_state.user_db[username]["pass"] == password:
+            v_bot = st.session_state.user_db[username]["bot"]
             v_cid = st.session_state.user_db[username]["cid"]
             v_deriv = st.session_state.user_db[username]["deriv"]
             st.sidebar.success(f"✅ Welcome {username}!")
@@ -112,6 +122,7 @@ elif menu == "Login":
 
 st.sidebar.markdown("---")
 st.sidebar.title("📲 Connection Details")
+# These are now auto-filled by the login logic above
 tele_token = st.sidebar.text_input("Bot Token", value=v_bot, type="password")
 tele_id = st.sidebar.text_input("Chat ID", value=v_cid)
 
