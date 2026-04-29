@@ -3,10 +3,12 @@ import pandas as pd
 import asyncio
 import time
 import requests
+import json
+import os
 from deriv_api import DerivAPI
 
 # --- 1. UI STYLING ---
-st.set_page_config(page_title="Slimmy Pro V17.3", layout="centered") 
+st.set_page_config(page_title="Slimmy Pro V17.4", layout="centered") 
 st.markdown("""
     <style>
     .main { background-color: #041a12; }
@@ -25,7 +27,18 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. TELEGRAM FUNCTION ---
+# --- 2. PERMANENT MEMORY (JSON DATABASE) ---
+DB_FILE = "user_vault.json"
+
+def load_db():
+    if os.path.exists(DB_FILE):
+        with open(DB_FILE, "r") as f: return json.load(f)
+    return {}
+
+def save_db(data):
+    with open(DB_FILE, "w") as f: json.dump(data, f)
+
+# --- 3. TELEGRAM FUNCTION ---
 def send_tele(msg, token, cid):
     if token and cid:
         try:
@@ -33,25 +46,23 @@ def send_tele(msg, token, cid):
             requests.get(url)
         except: pass
 
-# --- 3. STATE & DATABASE ---
+# --- 4. STATE ---
 if "trades" not in st.session_state: st.session_state.trades = []
 if "running" not in st.session_state: st.session_state.running = False
 if "wins" not in st.session_state: st.session_state.wins = 0
 if "losses" not in st.session_state: st.session_state.losses = 0
 if "live_bal" not in st.session_state: st.session_state.live_bal = 0.0
-if "user_db" not in st.session_state: st.session_state.user_db = {} 
-# Persistence for auto-loading
 if "active_user" not in st.session_state: st.session_state.active_user = None
 
-# --- 4. HEADER ---
-st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO</h2><p style='color:#8cc63f; margin:0; font-size:12px;'>V17.3 ONE-CLICK LOGIN</p></div>", unsafe_allow_html=True)
+# --- 5. HEADER ---
+st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO</h2><p style='color:#8cc63f; margin:0; font-size:12px;'>V17.4 PERMANENT MEMORY</p></div>", unsafe_allow_html=True)
 
-# Math
+# Math calculations
 total_pl = sum([t['Profit'] for t in st.session_state.trades])
 total_t = st.session_state.wins + st.session_state.losses
 win_rate = (st.session_state.wins / total_t * 100) if total_t > 0 else 0
 
-# --- 5. VERTICAL DASHBOARD ---
+# Metrics Display
 st.metric("💳 DERIV BALANCE", f"${st.session_state.live_bal:,.2f}")
 st.metric("💰 SESSION P/L", f"${total_pl:.2f}")
 st.metric("🎯 ACCURACY", f"{win_rate:.0f}%")
@@ -62,9 +73,11 @@ st.markdown("---")
 status_area = st.empty()
 chart_area = st.empty()
 
-# --- 6. SIDEBAR & USER CENTER ---
+# --- 6. SIDEBAR & USER CENTER (SENSES ERRORS) ---
 st.sidebar.title("👥 User Center")
 menu = st.sidebar.radio("Select Action", ["Login", "Register", "Forgot Password"])
+
+db = load_db()
 
 if menu == "Register":
     st.sidebar.subheader("Create Account")
@@ -74,32 +87,42 @@ if menu == "Register":
     reg_bot = st.sidebar.text_input("Bot Token")
     reg_cid = st.sidebar.text_input("Chat ID")
     reg_deriv = st.sidebar.text_input("Deriv Token")
+    
     if st.sidebar.button("💾 Register Account"):
-        st.session_state.user_db[new_user] = {"email": new_email, "pass": new_pass, "bot": reg_bot, "cid": reg_cid, "deriv": reg_deriv}
-        st.sidebar.success("✅ Registered! Go to Login.")
+        if not new_user or not new_pass:
+            st.sidebar.error("❌ Username and Password cannot be empty!")
+        elif new_user in db:
+            st.sidebar.error("❌ Username already exists! Try another one.")
+        else:
+            db[new_user] = {"email": new_email, "pass": new_pass, "bot": reg_bot, "cid": reg_cid, "deriv": reg_deriv}
+            save_db(db)
+            st.sidebar.success("✅ Account saved forever! Go to Login.")
 
 elif menu == "Login":
     st.sidebar.subheader("Account Login")
     u_name = st.sidebar.text_input("Username")
     u_pass = st.sidebar.text_input("Password", type="password")
+    
     if st.sidebar.button("🔓 Login Now"):
-        if u_name in st.session_state.user_db and st.session_state.user_db[u_name]["pass"] == u_pass:
-            st.session_state.active_user = st.session_state.user_db[u_name]
-            st.sidebar.success(f"✅ Welcome {u_name}! Settings loaded.")
-        else: st.sidebar.error("❌ Wrong details")
+        if u_name not in db:
+            st.sidebar.error("❌ User not found. Please Register first.")
+        elif db[u_name]["pass"] != u_pass:
+            st.sidebar.error("❌ Incorrect Password!")
+        else:
+            st.session_state.active_user = db[u_name]
+            st.sidebar.success(f"✅ Welcome {u_name}! All details loaded.")
 
 elif menu == "Forgot Password":
-    # ... (Same recovery logic from V17.2)
     st.sidebar.subheader("Recovery")
     rec_u = st.sidebar.text_input("Username")
     rec_e = st.sidebar.text_input("Email")
     if st.sidebar.button("🔑 Send to Telegram"):
-        if rec_u in st.session_state.user_db and st.session_state.user_db[rec_u]["email"] == rec_e:
-            send_tele(f"Your password is: {st.session_state.user_db[rec_u]['pass']}", st.session_state.user_db[rec_u]['bot'], st.session_state.user_db[rec_u]['cid'])
-            st.sidebar.success("✅ Sent!")
+        if rec_u in db and db[rec_u]["email"] == rec_e:
+            send_tele(f"🔐 Recovery: Your password is: {db[rec_u]['pass']}", db[rec_u]['bot'], db[rec_u]['cid'])
+            st.sidebar.success("✅ Sent to your Telegram!")
+        else: st.sidebar.error("❌ Username or Email is wrong.")
 
-# --- AUTO-LOAD DATA ---
-# This pulls the data from the login so you don't have to re-type it
+# --- AUTO-LOAD LOADED DATA ---
 v_bot = st.session_state.active_user["bot"] if st.session_state.active_user else ""
 v_cid = st.session_state.active_user["cid"] if st.session_state.active_user else ""
 v_deriv = st.session_state.active_user["deriv"] if st.session_state.active_user else ""
@@ -122,12 +145,12 @@ if st.sidebar.button("🚀 DEPLOY (START FRESH)", use_container_width=True):
         st.session_state.wins = 0
         st.session_state.losses = 0
         st.session_state.running = True
-    else: st.sidebar.error("Please Login first!")
+    else: st.sidebar.error("❌ Please Login first!")
 
 if st.sidebar.button("🛑 STOP SESSION", use_container_width=True):
     st.session_state.running = False
 
-# --- 7. ENGINE (Same as V17.2) ---
+# --- 7. ENGINE (Same Logic) ---
 async def worker():
     api = DerivAPI(app_id=36544)
     try:
