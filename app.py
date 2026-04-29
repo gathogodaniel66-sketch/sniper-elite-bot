@@ -3,10 +3,11 @@ import pandas as pd
 import asyncio
 import time
 import requests
+import json
 from deriv_api import DerivAPI
 
 # --- 1. UI STYLING ---
-st.set_page_config(page_title="Slimmy Pro V16.9", layout="centered") 
+st.set_page_config(page_title="Slimmy Pro V17.0", layout="centered") 
 st.markdown("""
     <style>
     .main { background-color: #041a12; }
@@ -33,15 +34,16 @@ def send_tele(msg, token, cid):
             requests.get(url)
         except: pass
 
-# --- 3. STATE ---
+# --- 3. STATE & DATABASE ---
 if "trades" not in st.session_state: st.session_state.trades = []
 if "running" not in st.session_state: st.session_state.running = False
 if "wins" not in st.session_state: st.session_state.wins = 0
 if "losses" not in st.session_state: st.session_state.losses = 0
 if "live_bal" not in st.session_state: st.session_state.live_bal = 0.0
+if "user_db" not in st.session_state: st.session_state.user_db = {} # Simple database
 
 # --- 4. HEADER ---
-st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO</h2><p style='color:#8cc63f; margin:0; font-size:12px;'>V16.9 SECURE ACCESS</p></div>", unsafe_allow_html=True)
+st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO</h2><p style='color:#8cc63f; margin:0; font-size:12px;'>V17.0 MEMBERSHIP MODE</p></div>", unsafe_allow_html=True)
 
 # Math
 total_pl = sum([t['Profit'] for t in st.session_state.trades])
@@ -75,32 +77,41 @@ if st.session_state.trades:
     }
     st.table(pd.DataFrame(analysis_data))
 else:
-    st.info("Waiting for Round 1 to begin...")
+    st.info("Please Login to begin your round.")
 
-# --- 6. SIDEBAR & SECURE VAULT ---
-st.sidebar.title("🔐 Secure Login")
-user_pass = st.sidebar.text_input("Enter Secret Password", type="password")
+# --- 6. SIDEBAR & USER CENTER ---
+st.sidebar.title("👥 User Center")
+menu = st.sidebar.radio("Select Action", ["Login", "Register"])
 
-# --- YOUR PRIVATE VAULT SETTINGS ---
-# Edit these 3 lines one last time!
-MY_PASSWORD = "Slimmy123"
-MY_TELEGRAM_ID = "YOUR_CHAT_ID_HERE"
-MY_DERIV_TOKEN = "YOUR_DERIV_TOKEN_HERE"
-MY_BOT_TOKEN = "8559067530:AAFN4-0OUAGq1ckAU0Gzm8xMe6Wg0DiQDpo"
+v_bot = "8559067530:AAFN4-0OUAGq1ckAU0Gzm8xMe6Wg0DiQDpo" # Default bot
+v_cid = ""
+v_deriv = ""
 
-if user_pass == MY_PASSWORD:
-    v_bot = MY_BOT_TOKEN
-    v_cid = MY_TELEGRAM_ID
-    v_deriv = MY_DERIV_TOKEN
-    st.sidebar.success("✅ PRO LOGGED IN")
-else:
-    v_bot = ""
-    v_cid = ""
-    v_deriv = ""
-    if user_pass: st.sidebar.error("❌ Wrong Password")
+if menu == "Register":
+    st.sidebar.subheader("Create Account")
+    new_user = st.sidebar.text_input("New Username")
+    new_pass = st.sidebar.text_input("New Password", type="password")
+    reg_deriv = st.sidebar.text_input("Your Deriv Token")
+    reg_cid = st.sidebar.text_input("Your Telegram Chat ID")
+    if st.sidebar.button("💾 Register"):
+        st.session_state.user_db[new_user] = {"pass": new_pass, "deriv": reg_deriv, "cid": reg_cid}
+        st.sidebar.success("✅ Registered! Switch to Login tab.")
+
+elif menu == "Login":
+    st.sidebar.subheader("Account Login")
+    username = st.sidebar.text_input("Username")
+    password = st.sidebar.text_input("Password", type="password")
+    
+    if username in st.session_state.user_db:
+        if st.session_state.user_db[username]["pass"] == password:
+            v_cid = st.session_state.user_db[username]["cid"]
+            v_deriv = st.session_state.user_db[username]["deriv"]
+            st.sidebar.success(f"✅ Welcome {username}!")
+        else:
+            if password: st.sidebar.error("❌ Wrong Password")
 
 st.sidebar.markdown("---")
-st.sidebar.title("📲 Telegram Alerts")
+st.sidebar.title("📲 Connection Details")
 tele_token = st.sidebar.text_input("Bot Token", value=v_bot, type="password")
 tele_id = st.sidebar.text_input("Chat ID", value=v_cid)
 
@@ -117,7 +128,7 @@ if st.sidebar.button("🚀 DEPLOY (START FRESH)", use_container_width=True):
         st.session_state.wins = 0
         st.session_state.losses = 0
         st.session_state.running = True
-    else: st.sidebar.error("Enter Deriv Token!")
+    else: st.sidebar.error("Please Login first!")
 
 if st.sidebar.button("🛑 STOP SESSION", use_container_width=True):
     st.session_state.running = False
