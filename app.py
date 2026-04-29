@@ -6,7 +6,7 @@ import requests
 from deriv_api import DerivAPI
 
 # --- 1. UI STYLING ---
-st.set_page_config(page_title="Slimmy Pro V16.4", layout="centered") 
+st.set_page_config(page_title="Slimmy Pro V16.7", layout="centered") 
 st.markdown("""
     <style>
     .main { background-color: #041a12; }
@@ -38,9 +38,10 @@ if "trades" not in st.session_state: st.session_state.trades = []
 if "running" not in st.session_state: st.session_state.running = False
 if "wins" not in st.session_state: st.session_state.wins = 0
 if "losses" not in st.session_state: st.session_state.losses = 0
+if "live_bal" not in st.session_state: st.session_state.live_bal = 0.0
 
 # --- 4. HEADER ---
-st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO</h2><p style='color:#8cc63f; margin:0; font-size:12px;'>V16.4 FULL CONTROL</p></div>", unsafe_allow_html=True)
+st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO</h2><p style='color:#8cc63f; margin:0; font-size:12px;'>V16.7 ACCOUNT SYNC</p></div>", unsafe_allow_html=True)
 
 # Math
 total_pl = sum([t['Profit'] for t in st.session_state.trades])
@@ -48,6 +49,7 @@ total_t = st.session_state.wins + st.session_state.losses
 win_rate = (st.session_state.wins / total_t * 100) if total_t > 0 else 0
 
 # --- 5. VERTICAL DASHBOARD ---
+st.metric("💳 DERIV BALANCE", f"${st.session_state.live_bal:,.2f}")
 st.metric("💰 NET PROFIT", f"${total_pl:.2f}")
 st.metric("🎯 ACCURACY", f"{win_rate:.0f}%")
 st.metric("✅ WINS", st.session_state.wins)
@@ -75,7 +77,7 @@ if st.session_state.trades:
 else:
     st.info("Waiting for trades...")
 
-# --- 6. SIDEBAR CONTROLS (RESTORED) ---
+# --- 6. SIDEBAR CONTROLS ---
 st.sidebar.title("📲 Telegram Alerts")
 tele_token = st.sidebar.text_input("Bot Token", type="password")
 tele_id = st.sidebar.text_input("Chat ID")
@@ -100,7 +102,13 @@ async def worker():
     try:
         await api.authorize(deriv_token)
         status_area.success("🟢 CONNECTED")
-        send_tele("🚀 System Live.", tele_token, tele_id)
+        
+        # Get Initial Balance
+        bal_res = await api.balance()
+        st.session_state.live_bal = bal_res['balance']['balance']
+        
+        send_tele(f"🚀 System Live. Balance: ${st.session_state.live_bal}", tele_token, tele_id)
+        
         while st.session_state.running:
             if total_pl <= -max_loss:
                 send_tele("⚠️ Stop Loss Hit!", tele_token, tele_id)
@@ -122,25 +130,27 @@ async def worker():
                 if live_trade:
                     await api.buy({"buy": 1, "price": stake, "parameters": {"amount": stake, "basis": "stake", "contract_type": trade_type, "currency": "USD", "duration": 5, "duration_unit": "t", "symbol": "1HZ100V"}})
                 
-                entry_p = prices[-1]
-                await asyncio.sleep(7)
-                                # --- START OF NEW FIX ---
-                # Wait for Deriv to finish the trade
-                await asyncio.sleep(2) 
+                # Wait for trade to finish
+                await asyncio.sleep(8)
                 
-                # Ask Deriv for the REAL official result
+                # --- SYNC FIX: Ask Deriv for the REAL official result ---
                 history = await api.profit_table({"profit_table": 1, "limit": 1})
                 last_trade = history['profit_table']['transactions'][0]
                 
-                p_val = float(last_contract['sell_price']) - float(last_contract['buy_price'])
+                # Official profit/loss from the server
+                p_val = float(last_trade['sell_price']) - float(last_trade['buy_price'])
                 won = p_val > 0
                 
                 if won: st.session_state.wins += 1
                 else: st.session_state.losses += 1
-                # --- END OF NEW FIX ---
-
+                
+                # Update Live Balance
+                bal_upd = await api.balance()
+                st.session_state.live_bal = bal_upd['balance']['balance']
                 
                 st.session_state.trades.append({"Time": time.strftime("%H:%M"), "Type": trade_type, "Profit": p_val})
+                send_tele(f"💰 Result: {'WIN' if won else 'LOSS'} (${p_val:.2f})\n💳 New Balance: ${st.session_state.live_bal}", tele_token, tele_id)
+                
                 await asyncio.sleep(50)
             
             await asyncio.sleep(1)
