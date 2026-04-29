@@ -6,7 +6,7 @@ import requests
 from deriv_api import DerivAPI
 
 # --- 1. UI STYLING ---
-st.set_page_config(page_title="Slimmy Pro V17.1", layout="centered") 
+st.set_page_config(page_title="Slimmy Pro V17.2", layout="centered") 
 st.markdown("""
     <style>
     .main { background-color: #041a12; }
@@ -42,7 +42,7 @@ if "live_bal" not in st.session_state: st.session_state.live_bal = 0.0
 if "user_db" not in st.session_state: st.session_state.user_db = {} 
 
 # --- 4. HEADER ---
-st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO</h2><p style='color:#8cc63f; margin:0; font-size:12px;'>V17.1 FULL ACCOUNT SYNC</p></div>", unsafe_allow_html=True)
+st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO</h2><p style='color:#8cc63f; margin:0; font-size:12px;'>V17.2 PASSWORD RECOVERY</p></div>", unsafe_allow_html=True)
 
 # Math
 total_pl = sum([t['Profit'] for t in st.session_state.trades])
@@ -60,27 +60,9 @@ st.markdown("---")
 status_area = st.empty()
 chart_area = st.empty()
 
-# --- 📊 ANALYSIS TABLE ---
-st.markdown("### 📈 Round Analysis")
-if st.session_state.trades:
-    df_analysis = pd.DataFrame(st.session_state.trades)
-    buys = df_analysis[df_analysis['Type'] == 'CALL']
-    sells = df_analysis[df_analysis['Type'] == 'PUT']
-    
-    analysis_data = {
-        "Direction": ["Total", "Buys (CALL)", "Sells (PUT)"],
-        "Trades": [len(df_analysis), len(buys), len(sells)],
-        "Wins": [len(df_analysis[df_analysis['Profit'] > 0]), len(buys[buys['Profit'] > 0]), len(sells[sells['Profit'] > 0])],
-        "Losses": [len(df_analysis[df_analysis['Profit'] <= 0]), len(buys[buys['Profit'] <= 0]), len(sells[sells['Profit'] <= 0])],
-        "Profit": [f"${df_analysis['Profit'].sum():.2f}", f"${buys['Profit'].sum():.2f}", f"${sells['Profit'].sum():.2f}"]
-    }
-    st.table(pd.DataFrame(analysis_data))
-else:
-    st.info("Please Login to begin your round.")
-
-# --- 6. SIDEBAR & USER CENTER (FIXED) ---
+# --- 6. SIDEBAR & USER CENTER (WITH RECOVERY) ---
 st.sidebar.title("👥 User Center")
-menu = st.sidebar.radio("Select Action", ["Login", "Register"])
+menu = st.sidebar.radio("Select Action", ["Login", "Register", "Forgot Password"])
 
 v_bot = ""
 v_cid = ""
@@ -88,23 +70,25 @@ v_deriv = ""
 
 if menu == "Register":
     st.sidebar.subheader("Create Account")
-    new_user = st.sidebar.text_input("New Username")
+    new_user = st.sidebar.text_input("Username")
+    new_email = st.sidebar.text_input("Email Address") # NEW
     new_pass = st.sidebar.text_input("New Password", type="password")
-    reg_bot = st.sidebar.text_input("Your Telegram Bot Token") # ADDED THIS
-    reg_cid = st.sidebar.text_input("Your Telegram Chat ID")
-    reg_deriv = st.sidebar.text_input("Your Deriv Token")
+    reg_bot = st.sidebar.text_input("Telegram Bot Token")
+    reg_cid = st.sidebar.text_input("Telegram Chat ID")
+    reg_deriv = st.sidebar.text_input("Deriv Token")
     
     if st.sidebar.button("💾 Register Account"):
-        if new_user and new_pass:
+        if new_user and new_pass and new_email:
             st.session_state.user_db[new_user] = {
+                "email": new_email,
                 "pass": new_pass, 
                 "bot": reg_bot, 
                 "cid": reg_cid, 
                 "deriv": reg_deriv
             }
-            st.sidebar.success("✅ Registered! You can now Login.")
+            st.sidebar.success("✅ Registered! Switch to Login.")
         else:
-            st.sidebar.error("Username and Password are required!")
+            st.sidebar.error("Fill all fields!")
 
 elif menu == "Login":
     st.sidebar.subheader("Account Login")
@@ -113,21 +97,30 @@ elif menu == "Login":
     
     if username in st.session_state.user_db:
         if st.session_state.user_db[username]["pass"] == password:
-            v_bot = st.session_state.user_db[username]["bot"]
-            v_cid = st.session_state.user_db[username]["cid"]
-            v_deriv = st.session_state.user_db[username]["deriv"]
+            u_data = st.session_state.user_db[username]
+            v_bot, v_cid, v_deriv = u_data["bot"], u_data["cid"], u_data["deriv"]
             st.sidebar.success(f"✅ Welcome {username}!")
-        else:
-            if password: st.sidebar.error("❌ Wrong Password")
+        elif password: st.sidebar.error("❌ Wrong Password")
 
+elif menu == "Forgot Password":
+    st.sidebar.subheader("Recover Account")
+    rec_user = st.sidebar.text_input("Enter Username")
+    rec_email = st.sidebar.text_input("Enter Registered Email")
+    
+    if st.sidebar.button("🔑 Send Password to Telegram"):
+        if rec_user in st.session_state.user_db:
+            u_data = st.session_state.user_db[rec_user]
+            if u_data["email"] == rec_email:
+                msg = f"🔐 Recovery: Your password for {rec_user} is: {u_data['pass']}"
+                send_tele(msg, u_data["bot"], u_data["cid"])
+                st.sidebar.success("✅ Password sent to your Telegram!")
+            else: st.sidebar.error("❌ Email does not match!")
+        else: st.sidebar.error("❌ Username not found!")
+
+# --- 7. CONNECTION & ENGINE (Same as V17.1) ---
 st.sidebar.markdown("---")
-st.sidebar.title("📲 Connection Details")
-# These are now auto-filled by the login logic above
 tele_token = st.sidebar.text_input("Bot Token", value=v_bot, type="password")
 tele_id = st.sidebar.text_input("Chat ID", value=v_cid)
-
-st.sidebar.markdown("---")
-st.sidebar.title("🏦 Wallet & Risk")
 deriv_token = st.sidebar.text_input("Deriv Token", value=v_deriv, type="password")
 stake = st.sidebar.number_input("Stake Amount ($)", value=2.0)
 max_loss = st.sidebar.number_input("Stop Loss Limit ($)", value=50.0)
@@ -144,16 +137,13 @@ if st.sidebar.button("🚀 DEPLOY (START FRESH)", use_container_width=True):
 if st.sidebar.button("🛑 STOP SESSION", use_container_width=True):
     st.session_state.running = False
 
-# --- 7. ENGINE ---
 async def worker():
     api = DerivAPI(app_id=36544)
     try:
         await api.authorize(deriv_token)
         status_area.success("🟢 CONNECTED")
-        
         bal_res = await api.balance()
         st.session_state.live_bal = bal_res['balance']['balance']
-        
         send_tele(f"🏁 NEW ROUND STARTED\nBalance: ${st.session_state.live_bal}", tele_token, tele_id)
         
         while st.session_state.running:
@@ -161,44 +151,30 @@ async def worker():
                 send_tele("⚠️ Round Halted: Stop Loss!", tele_token, tele_id)
                 st.session_state.running = False
                 break
-
             ticks = await api.ticks_history({"ticks_history": "1HZ100V", "count": 30, "end": "latest"})
             prices = [float(p) for p in ticks["history"]["prices"]]
             chart_area.line_chart(prices)
-            
             ma_short = sum(prices[-10:])/10
             momentum = prices[-1] - prices[-5]
-            
             if (prices[-1] > ma_short and momentum > 0.4) or (prices[-1] < ma_short and momentum < -0.4):
                 trade_type = "CALL" if prices[-1] > ma_short else "PUT"
                 status_area.warning(f"🎯 SIGNAL: {trade_type}")
                 await asyncio.sleep(2)
-                
                 if live_trade:
                     await api.buy({"buy": 1, "price": stake, "parameters": {"amount": stake, "basis": "stake", "contract_type": trade_type, "currency": "USD", "duration": 5, "duration_unit": "t", "symbol": "1HZ100V"}})
-                
                 await asyncio.sleep(8)
-                
-                # OFFICIAL SYNC
                 history = await api.profit_table({"profit_table": 1, "limit": 1})
                 last_trade = history['profit_table']['transactions'][0]
                 p_val = float(last_trade['sell_price']) - float(last_trade['buy_price'])
-                won = p_val > 0
-                
-                if won: st.session_state.wins += 1
+                if p_val > 0: st.session_state.wins += 1
                 else: st.session_state.losses += 1
-                
                 bal_upd = await api.balance()
                 st.session_state.live_bal = bal_upd['balance']['balance']
-                
                 st.session_state.trades.append({"Time": time.strftime("%H:%M"), "Type": trade_type, "Profit": p_val})
-                send_tele(f"💰 Result: {'WIN' if won else 'LOSS'} (${p_val:.2f})\n💳 Balance: ${st.session_state.live_bal}", tele_token, tele_id)
-                
+                send_tele(f"💰 Result: {'WIN' if p_val > 0 else 'LOSS'} (${p_val:.2f})\n💳 Balance: ${st.session_state.live_bal}", tele_token, tele_id)
                 await asyncio.sleep(50)
-            
             await asyncio.sleep(1)
-    except Exception as e:
-        st.error(f"Error: {e}")
+    except Exception as e: st.error(f"Error: {e}")
 
 if st.session_state.running:
     asyncio.run(worker())
