@@ -124,14 +124,21 @@ async def worker():
                 
                 entry_p = prices[-1]
                 await asyncio.sleep(7)
+                                # --- START OF NEW FIX ---
+                # Wait for Deriv to finish the trade
+                await asyncio.sleep(2) 
                 
-                res = await api.ticks_history({"ticks_history": "1HZ100V", "count": 1, "end": "latest"})
-                exit_p = float(res["history"]["prices"][0])
-                won = (trade_type == "CALL" and exit_p > entry_p) or (trade_type == "PUT" and exit_p < entry_p)
+                # Ask Deriv for the REAL official result
+                history = await api.profit_table({"profit_table": 1, "limit": 1})
+                last_trade = history['profit_table']['transactions'][0]
                 
-                p_val = (stake * 0.95) if won else -stake
+                p_val = float(last_contract['sell_price']) - float(last_contract['buy_price'])
+                won = p_val > 0
+                
                 if won: st.session_state.wins += 1
                 else: st.session_state.losses += 1
+                # --- END OF NEW FIX ---
+
                 
                 st.session_state.trades.append({"Time": time.strftime("%H:%M"), "Type": trade_type, "Profit": p_val})
                 await asyncio.sleep(50)
