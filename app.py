@@ -8,7 +8,7 @@ import os
 from deriv_api import DerivAPI
 
 # --- 1. UI STYLING ---
-st.set_page_config(page_title="Slimmy Pro V17.4", layout="centered") 
+st.set_page_config(page_title="Slimmy Pro V17.6", layout="centered") 
 st.markdown("""
     <style>
     .main { background-color: #041a12; }
@@ -27,18 +27,30 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. PERMANENT MEMORY (JSON DATABASE) ---
-DB_FILE = "user_vault.json"
+# --- 2. PERMANENT DATABASE (EMAIL-BASED) ---
+DB_FILE = "slimmy_members.json"
 
 def load_db():
     if os.path.exists(DB_FILE):
-        with open(DB_FILE, "r") as f: return json.load(f)
+        with open(DB_FILE, "r") as f:
+            try: return json.load(f)
+            except: return {}
     return {}
 
-def save_db(data):
-    with open(DB_FILE, "w") as f: json.dump(data, f)
+def save_member(email, data):
+    db = load_db()
+    db[email] = data
+    with open(DB_FILE, "w") as f:
+        json.dump(db, f)
 
-# --- 3. TELEGRAM FUNCTION ---
+# --- 3. STATE & TELEGRAM ---
+if "trades" not in st.session_state: st.session_state.trades = []
+if "running" not in st.session_state: st.session_state.running = False
+if "wins" not in st.session_state: st.session_state.wins = 0
+if "losses" not in st.session_state: st.session_state.losses = 0
+if "live_bal" not in st.session_state: st.session_state.live_bal = 0.0
+if "user_session" not in st.session_state: st.session_state.user_session = None
+
 def send_tele(msg, token, cid):
     if token and cid:
         try:
@@ -46,23 +58,14 @@ def send_tele(msg, token, cid):
             requests.get(url)
         except: pass
 
-# --- 4. STATE ---
-if "trades" not in st.session_state: st.session_state.trades = []
-if "running" not in st.session_state: st.session_state.running = False
-if "wins" not in st.session_state: st.session_state.wins = 0
-if "losses" not in st.session_state: st.session_state.losses = 0
-if "live_bal" not in st.session_state: st.session_state.live_bal = 0.0
-if "active_user" not in st.session_state: st.session_state.active_user = None
-
-# --- 5. HEADER ---
-st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO</h2><p style='color:#8cc63f; margin:0; font-size:12px;'>V17.4 PERMANENT MEMORY</p></div>", unsafe_allow_html=True)
+# --- 4. HEADER ---
+st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO</h2><p style='color:#8cc63f; margin:0; font-size:12px;'>V17.6 EMAIL ACCESS</p></div>", unsafe_allow_html=True)
 
 # Math calculations
 total_pl = sum([t['Profit'] for t in st.session_state.trades])
 total_t = st.session_state.wins + st.session_state.losses
 win_rate = (st.session_state.wins / total_t * 100) if total_t > 0 else 0
 
-# Metrics Display
 st.metric("💳 DERIV BALANCE", f"${st.session_state.live_bal:,.2f}")
 st.metric("💰 SESSION P/L", f"${total_pl:.2f}")
 st.metric("🎯 ACCURACY", f"{win_rate:.0f}%")
@@ -73,59 +76,59 @@ st.markdown("---")
 status_area = st.empty()
 chart_area = st.empty()
 
-# --- 6. SIDEBAR & USER CENTER (SENSES ERRORS) ---
+# --- 5. USER CENTER ---
 st.sidebar.title("👥 User Center")
-menu = st.sidebar.radio("Select Action", ["Login", "Register", "Forgot Password"])
+choice = st.sidebar.selectbox("Access Mode", ["Login", "Register", "Forgot Password"])
 
 db = load_db()
 
-if menu == "Register":
-    st.sidebar.subheader("Create Account")
-    new_user = st.sidebar.text_input("Username")
-    new_email = st.sidebar.text_input("Email")
-    new_pass = st.sidebar.text_input("Password", type="password")
-    reg_bot = st.sidebar.text_input("Bot Token")
-    reg_cid = st.sidebar.text_input("Chat ID")
-    reg_deriv = st.sidebar.text_input("Deriv Token")
+if choice == "Register":
+    st.sidebar.subheader("Join Slimmy Pro")
+    r_email = st.sidebar.text_input("Email Address")
+    r_user = st.sidebar.text_input("Username (Display Name)")
+    r_pass = st.sidebar.text_input("Password", type="password")
+    r_bot = st.sidebar.text_input("Telegram Bot Token")
+    r_cid = st.sidebar.text_input("Telegram Chat ID")
+    r_deriv = st.sidebar.text_input("Deriv API Token")
     
-    if st.sidebar.button("💾 Register Account"):
-        if not new_user or not new_pass:
-            st.sidebar.error("❌ Username and Password cannot be empty!")
-        elif new_user in db:
-            st.sidebar.error("❌ Username already exists! Try another one.")
+    if st.sidebar.button("✨ Create Account"):
+        if r_email in db:
+            st.sidebar.error("❌ Email already registered!")
+        elif r_email and r_pass:
+            user_data = {"name": r_user, "pass": r_pass, "bot": r_bot, "cid": r_cid, "deriv": r_deriv}
+            save_member(r_email, user_data)
+            st.sidebar.success("✅ Registered! Switch to 'Login' now.")
         else:
-            db[new_user] = {"email": new_email, "pass": new_pass, "bot": reg_bot, "cid": reg_cid, "deriv": reg_deriv}
-            save_db(db)
-            st.sidebar.success("✅ Account saved forever! Go to Login.")
+            st.sidebar.error("❌ Email and Password are required!")
 
-elif menu == "Login":
-    st.sidebar.subheader("Account Login")
-    u_name = st.sidebar.text_input("Username")
-    u_pass = st.sidebar.text_input("Password", type="password")
+elif choice == "Login":
+    st.sidebar.subheader("Member Login")
+    l_email = st.sidebar.text_input("Email")
+    l_pass = st.sidebar.text_input("Password", type="password")
     
     if st.sidebar.button("🔓 Login Now"):
-        if u_name not in db:
-            st.sidebar.error("❌ User not found. Please Register first.")
-        elif db[u_name]["pass"] != u_pass:
-            st.sidebar.error("❌ Incorrect Password!")
+        if l_email in db and db[l_email]["pass"] == l_pass:
+            st.session_state.user_session = db[l_email]
+            st.sidebar.success(f"✅ Welcome back, {db[l_email]['name']}!")
         else:
-            st.session_state.active_user = db[u_name]
-            st.sidebar.success(f"✅ Welcome {u_name}! All details loaded.")
+            st.sidebar.error("❌ Incorrect Email or Password")
 
-elif menu == "Forgot Password":
-    st.sidebar.subheader("Recovery")
-    rec_u = st.sidebar.text_input("Username")
-    rec_e = st.sidebar.text_input("Email")
-    if st.sidebar.button("🔑 Send to Telegram"):
-        if rec_u in db and db[rec_u]["email"] == rec_e:
-            send_tele(f"🔐 Recovery: Your password is: {db[rec_u]['pass']}", db[rec_u]['bot'], db[rec_u]['cid'])
-            st.sidebar.success("✅ Sent to your Telegram!")
-        else: st.sidebar.error("❌ Username or Email is wrong.")
+elif choice == "Forgot Password":
+    st.sidebar.subheader("Reset Access")
+    f_email = st.sidebar.text_input("Enter Registered Email")
+    if st.sidebar.button("🔑 Send Password"):
+        if f_email in db:
+            u = db[f_email]
+            send_tele(f"🔐 Password Recovery: Your password is {u['pass']}", u['bot'], u['cid'])
+            st.sidebar.success("✅ Sent! Check your Telegram.")
+        else:
+            st.sidebar.error("❌ Email not found.")
 
-# --- AUTO-LOAD LOADED DATA ---
-v_bot = st.session_state.active_user["bot"] if st.session_state.active_user else ""
-v_cid = st.session_state.active_user["cid"] if st.session_state.active_user else ""
-v_deriv = st.session_state.active_user["deriv"] if st.session_state.active_user else ""
+# --- 6. AUTO-LOAD & TRADING ENGINE ---
+u = st.session_state.user_session
+v_bot = u["bot"] if u else ""
+v_cid = u["cid"] if u else ""
+v_deriv = u["deriv"] if u else ""
 
 st.sidebar.markdown("---")
 st.sidebar.title("📲 Connection Details")
@@ -134,23 +137,21 @@ tele_id = st.sidebar.text_input("Chat ID", value=v_cid)
 deriv_token = st.sidebar.text_input("Deriv Token", value=v_deriv, type="password")
 
 st.sidebar.markdown("---")
-st.sidebar.title("🏦 Wallet & Risk")
-stake = st.sidebar.number_input("Stake Amount ($)", value=2.0)
-max_loss = st.sidebar.number_input("Stop Loss Limit ($)", value=50.0)
+st.sidebar.title("🏦 Risk & Trade")
+stake = st.sidebar.number_input("Stake ($)", value=2.0)
+max_loss = st.sidebar.number_input("Stop Loss ($)", value=50.0)
 live_trade = st.sidebar.toggle("🟢 ACTIVATE LIVE TRADING")
 
 if st.sidebar.button("🚀 DEPLOY (START FRESH)", use_container_width=True):
     if deriv_token: 
         st.session_state.trades = []
-        st.session_state.wins = 0
-        st.session_state.losses = 0
+        st.session_state.wins = 0; st.session_state.losses = 0
         st.session_state.running = True
-    else: st.sidebar.error("❌ Please Login first!")
+    else: st.sidebar.error("❌ Please login first!")
 
 if st.sidebar.button("🛑 STOP SESSION", use_container_width=True):
     st.session_state.running = False
 
-# --- 7. ENGINE (Same Logic) ---
 async def worker():
     api = DerivAPI(app_id=36544)
     try:
