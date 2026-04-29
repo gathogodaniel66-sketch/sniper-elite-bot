@@ -5,8 +5,8 @@ import time
 import requests
 from deriv_api import DerivAPI
 
-# --- 1. UI STYLING ---
-st.set_page_config(page_title="Slimmy Pro V16.2", layout="centered") 
+# --- 1. UI STYLING (UNCHANGED) ---
+st.set_page_config(page_title="Slimmy Pro V16.3", layout="centered") 
 st.markdown("""
     <style>
     .main { background-color: #041a12; }
@@ -25,7 +25,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. TELEGRAM FUNCTION ---
+# --- 2. FUNCTIONS ---
 def send_tele(msg, token, cid):
     if token and cid:
         try:
@@ -40,7 +40,7 @@ if "wins" not in st.session_state: st.session_state.wins = 0
 if "losses" not in st.session_state: st.session_state.losses = 0
 
 # --- 4. HEADER ---
-st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO</h2><p style='color:#8cc63f; margin:0; font-size:12px;'>V16.2 CONTROL CENTER</p></div>", unsafe_allow_html=True)
+st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO</h2><p style='color:#8cc63f; margin:0; font-size:12px;'>V16.3 ANALYSIS EDITION</p></div>", unsafe_allow_html=True)
 
 # Math
 total_pl = sum([t['Profit'] for t in st.session_state.trades])
@@ -57,11 +57,28 @@ st.markdown("---")
 status_area = st.empty()
 chart_area = st.empty()
 
-# --- 6. SIDEBAR CONTROLS (Find these by tapping >>) ---
+# --- NEW: ANALYSIS TABLE ADDED HERE ---
+st.markdown("### 📊 Strategy Analysis")
+if st.session_state.trades:
+    df_analysis = pd.DataFrame(st.session_state.trades)
+    buys = df_analysis[df_analysis['Type'] == 'CALL']
+    sells = df_analysis[df_analysis['Type'] == 'PUT']
+    
+    analysis_data = {
+        "Direction": ["Total", "Buys (CALL)", "Sells (PUT)"],
+        "Trades": [len(df_analysis), len(buys), len(sells)],
+        "Wins": [len(df_analysis[df_analysis['Profit'] > 0]), len(buys[buys['Profit'] > 0]), len(sells[sells['Profit'] > 0])],
+        "Losses": [len(df_analysis[df_analysis['Profit'] <= 0]), len(buys[buys['Profit'] <= 0]), len(sells[sells['Profit'] <= 0])],
+        "Profit": [f"${df_analysis['Profit'].sum():.2f}", f"${buys['Profit'].sum():.2f}", f"${sells['Profit'].sum():.2f}"]
+    }
+    st.table(pd.DataFrame(analysis_data))
+else:
+    st.info("Waiting for trades to generate analysis...")
+
+# --- 6. SIDEBAR CONTROLS ---
 st.sidebar.title("📲 Telegram Alerts")
 tele_token = st.sidebar.text_input("Bot Token", type="password")
 tele_id = st.sidebar.text_input("Chat ID")
-
 st.sidebar.markdown("---")
 st.sidebar.title("🏦 Wallet & Risk")
 deriv_token = st.sidebar.text_input("Deriv Token", type="password")
@@ -82,13 +99,8 @@ async def worker():
     try:
         await api.authorize(deriv_token)
         status_area.success("🟢 CONNECTED")
-        send_tele("🚀 Slimmy, the V16.2 Engine is now LIVE.", tele_token, tele_id)
-        
         while st.session_state.running:
-            # Safety Check: Stop Loss
             if total_pl <= -max_loss:
-                status_area.error(f"🛑 STOP LOSS HIT: ${max_loss}")
-                send_tele(f"⚠️ STOP LOSS HIT: Your session lost ${max_loss}. System Halted.", tele_token, tele_id)
                 st.session_state.running = False
                 break
 
@@ -96,13 +108,12 @@ async def worker():
             prices = [float(p) for p in ticks["history"]["prices"]]
             chart_area.line_chart(prices)
             
-            # Logic: Using the High-Probability V12 Setup
             ma_short = sum(prices[-10:])/10
             momentum = prices[-1] - prices[-5]
             
             if (prices[-1] > ma_short and momentum > 0.4) or (prices[-1] < ma_short and momentum < -0.4):
                 trade_type = "CALL" if prices[-1] > ma_short else "PUT"
-                status_area.warning(f"🎯 SIGNAL: {trade_type}. Delaying 2s...")
+                status_area.warning(f"🎯 SIGNAL: {trade_type}")
                 await asyncio.sleep(2)
                 
                 if live_trade:
@@ -116,14 +127,11 @@ async def worker():
                 won = (trade_type == "CALL" and exit_p > entry_p) or (trade_type == "PUT" and exit_p < entry_p)
                 
                 p_val = (stake * 0.95) if won else -stake
-                if won: 
-                    st.session_state.wins += 1
-                    send_tele(f"✅ WIN! Profit: ${p_val:.2f}", tele_token, tele_id)
-                else: 
-                    st.session_state.losses += 1
-                    send_tele(f"❌ LOSS! -${stake}", tele_token, tele_id)
+                if won: st.session_state.wins += 1
+                else: st.session_state.losses += 1
                 
-                st.session_state.trades.append({"Profit": p_val})
+                # Updated trade record to include Type for the analysis table
+                st.session_state.trades.append({"Time": time.strftime("%H:%M"), "Type": trade_type, "Profit": p_val})
                 await asyncio.sleep(50)
             
             await asyncio.sleep(1)
