@@ -8,7 +8,7 @@ import os
 from deriv_api import DerivAPI
 
 # --- 1. UI STYLING ---
-st.set_page_config(page_title="KihatoGathogo Pro V22.1", layout="wide") 
+st.set_page_config(page_title="KihatoGathogo Pro V22.2", layout="wide") 
 st.markdown("""
     <style>
     .main { background-color: #041a12; }
@@ -71,7 +71,6 @@ if "is_paid" not in st.session_state:
 # THE GATE
 if not is_admin and not st.session_state.is_paid:
     st.sidebar.markdown("### 📲 STEP 1: SEND PAYMENT")
-    # Updated with your verified number
     st.sidebar.info("Send **1,300 KES** to: **0711934973**")
     
     st.sidebar.markdown("### 🔑 STEP 2: UNLOCK BOT")
@@ -82,7 +81,6 @@ if not is_admin and not st.session_state.is_paid:
             if "used_ids" not in st.session_state.db:
                 st.session_state.db["used_ids"] = []
             
-            # Prevent ID reuse
             if txn_id not in st.session_state.db["used_ids"]:
                 st.session_state.db["used_ids"].append(txn_id)
                 save_db(st.session_state.db)
@@ -95,19 +93,39 @@ if not is_admin and not st.session_state.is_paid:
         else:
             st.sidebar.error("❌ Invalid M-Pesa Code.")
 
-    st.sidebar.warning("Admin? Login to bypass.")
+    st.sidebar.markdown("---")
+    st.sidebar.warning("Admin? Access below:")
+    
+    # Action selector is now placed before the stop() so you can use it
     choice = st.sidebar.selectbox("Action", ["Login", "Register"])
+    
     if choice == "Login":
         l_email = st.sidebar.text_input("Email")
         l_pass = st.sidebar.text_input("Password", type="password")
         if st.sidebar.button("Admin Unlock"):
             if l_email in st.session_state.db and st.session_state.db[l_email]["pass"] == l_pass:
                 st.session_state.user_session = st.session_state.db[l_email]
+                st.sidebar.success("✅ Access Accepted.")
+                time.sleep(1)
                 st.rerun()
-    st.stop() # Locks everyone else
+            else:
+                st.sidebar.error("❌ Invalid Credentials")
+                
+    elif choice == "Register":
+        r_email = st.sidebar.text_input("New Email")
+        r_pass = st.sidebar.text_input("New Password", type="password")
+        r_bot = st.sidebar.text_input("Telegram Bot Token")
+        r_cid = st.sidebar.text_input("Telegram Chat ID")
+        r_deriv = st.sidebar.text_input("Deriv API Token")
+        if st.sidebar.button("Create Account"):
+            st.session_state.db[r_email] = {"pass": r_pass, "bot": r_bot, "cid": r_cid, "deriv": r_deriv}
+            save_db(st.session_state.db)
+            st.sidebar.success("✅ Account Created! Switch to Login.")
+
+    st.stop() # Locks the Trading Dashboard for everyone else
 
 # --- 4. HEADER & METRICS ---
-st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO V22.1</h2><p style='color:#8cc63f; margin:0;'>GLOBAL PRECISION ARCHITECTURE</p></div>", unsafe_allow_html=True)
+st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO V22.2</h2><p style='color:#8cc63f; margin:0;'>GLOBAL PRECISION ARCHITECTURE</p></div>", unsafe_allow_html=True)
 
 total_pl = round(sum([t['Profit'] for t in st.session_state.trades]), 2)
 total_t = st.session_state.wins + st.session_state.losses
@@ -128,10 +146,10 @@ with c2:
     st.write("**Volatility 100 (1s) Index**")
     st.components.v1.html('<iframe src="https://tradingview.binary.com/v1.3.10/main.html?symbol=1HZ100V&theme=black" height="350" width="100%"></iframe>', height=350)
 
-col_c, col_d, col_e = st.columns(3)
-with col_c: st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=FX%3AEURUSD&theme=dark" height="220" width="100%"></iframe>', height=220)
-with col_d: st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=FX%3AUSDJPY&theme=dark" height="220" width="100%"></iframe>', height=220)
-with col_e: st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=BINANCE%3ABTCUSDT&theme=dark" height="220" width="100%"></iframe>', height=220)
+col_sub = st.columns(3)
+with col_sub[0]: st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=FX%3AEURUSD&theme=dark" height="220" width="100%"></iframe>', height=220)
+with col_sub[1]: st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=FX%3AUSDJPY&theme=dark" height="220" width="100%"></iframe>', height=220)
+with col_sub[2]: st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=BINANCE%3ABTCUSDT&theme=dark" height="220" width="100%"></iframe>', height=220)
 
 # --- 6. TRADE HISTORY & EXPORT ---
 if st.session_state.trades:
