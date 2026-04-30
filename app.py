@@ -7,8 +7,8 @@ import json
 import os
 from deriv_api import DerivAPI
 
-# --- 1. UI STYLING (UNTOUCHED) ---
-st.set_page_config(page_title="Slimmy Pro V19.8", layout="wide") 
+# --- 1. UI STYLING ---
+st.set_page_config(page_title="Slimmy Pro V19.9", layout="wide") 
 st.markdown("""
     <style>
     .main { background-color: #041a12; }
@@ -32,7 +32,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. PERMANENT DATA & STATE (UNTOUCHED) ---
+# --- 2. PERMANENT DATA & STATE ---
 DB_FILE = "slimmy_vault_v18.json"
 def load_db():
     if os.path.exists(DB_FILE):
@@ -57,14 +57,14 @@ def send_tele(msg, token, cid):
         except: pass
 
 # --- 3. HEADER & METRICS ---
-st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO V19.8</h2><p style='color:#8cc63f; margin:0;'>STABILITY & PRECISION PATCH</p></div>", unsafe_allow_html=True)
+st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO V19.9</h2><p style='color:#8cc63f; margin:0;'>PRECISION TRADING HUB</p></div>", unsafe_allow_html=True)
 
-total_pl = sum([t['Profit'] for t in st.session_state.trades])
+total_pl = round(sum([t['Profit'] for t in st.session_state.trades]), 2)
 total_t = st.session_state.wins + st.session_state.losses
 win_rate = (st.session_state.wins / total_t * 100) if total_t > 0 else 0
 
 m1, m2, m3 = st.columns(3)
-with m1: st.metric("💳 BALANCE", f"${st.session_state.live_bal:,.2f}")
+with m1: st.metric("💳 BALANCE", f"${round(st.session_state.live_bal, 2):,.2f}")
 with m2: st.metric("💰 SESSION P/L", f"${total_pl:.2f}")
 with m3: st.metric("🎯 WIN RATE", f"{win_rate:.0f}%")
 
@@ -80,12 +80,20 @@ with col2:
     st.write("**Volatility 100 (1s) Index**")
     st.components.v1.html('<iframe src="https://tradingview.binary.com/v1.3.10/main.html?symbol=1HZ100V&theme=black" height="350" width="100%"></iframe>', height=350)
 
-col3, col4, col5 = st.columns(3)
-with col3: st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=FX%3AEURUSD&theme=dark" height="200" width="100%"></iframe>', height=200)
-with col4: st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=FX%3AUSDJPY&theme=dark" height="200" width="100%"></iframe>', height=200)
-with col5: st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=BINANCE%3ABTCUSDT&theme=dark" height="200" width="100%"></iframe>', height=200)
+# --- 5. TRADE HISTORY & EXPORT (RESTORED) ---
+if st.session_state.trades:
+    st.markdown("### 📥 Session Trade History")
+    history_df = pd.DataFrame(st.session_state.trades)
+    st.table(history_df.tail(10))
+    
+    csv = history_df.to_csv(index=False).encode('utf-8')
+    st.download_button(label="DOWNLOAD TRADE LOG (CSV)", data=csv, file_name=f"Slimmy_Trade_Log_{time.strftime('%Y%m%d_%H%M')}.csv", mime='text/csv')
+else:
+    st.info("Waiting for first trade to generate history...")
 
-# --- 5. SIDEBAR & LOGIN (SYNC FIXED) ---
+st.markdown("---")
+
+# --- 6. SIDEBAR & LOGIN (ACCESS FEEDBACK ADDED) ---
 st.sidebar.title("👥 User Center")
 choice = st.sidebar.selectbox("Action", ["Login", "Register", "Recovery"])
 
@@ -97,7 +105,8 @@ if choice == "Register":
     r_deriv = st.sidebar.text_input("Deriv Token")
     if st.sidebar.button("Create Pro Account"):
         st.session_state.db[r_email] = {"pass": r_pass, "bot": r_bot, "cid": r_cid, "deriv": r_deriv}
-        save_db(st.session_state.db); st.sidebar.success("Registered!")
+        save_db(st.session_state.db)
+        st.sidebar.success("✅ Account Created Successfully!")
 
 elif choice == "Login":
     l_email = st.sidebar.text_input("Email")
@@ -105,10 +114,13 @@ elif choice == "Login":
     if st.sidebar.button("Unlock Dashboard"):
         if l_email in st.session_state.db and st.session_state.db[l_email]["pass"] == l_pass:
             st.session_state.user_session = st.session_state.db[l_email]
-            st.rerun() # FIX 1: Ensure state syncs immediately
-        else: st.sidebar.error("❌ Invalid Credentials")
+            st.sidebar.success("✅ Access Accepted. Welcome back.")
+            time.sleep(1)
+            st.rerun()
+        else:
+            st.sidebar.error("❌ Access Declined. Incorrect credentials.")
 
-# --- 6. RISK SETTINGS ---
+# --- 7. RISK SETTINGS ---
 u = st.session_state.user_session
 v_bot, v_cid, v_deriv = (u["bot"], u["cid"], u["deriv"]) if u else ("", "", "")
 
@@ -120,14 +132,14 @@ live_trade = st.sidebar.toggle("🟢 LIVE TRADING ACTIVE")
 if st.sidebar.button("🚀 DEPLOY SNIPER", use_container_width=True):
     if v_deriv:
         st.session_state.trades = []; st.session_state.wins = 0; st.session_state.losses = 0; st.session_state.running = True
-    else: st.sidebar.error("Login first!")
+    else: st.sidebar.error("Please login to verify access.")
 
 if st.sidebar.button("🛑 KILL SWITCH", use_container_width=True): st.session_state.running = False
 
 status_area = st.empty()
 chart_area = st.empty()
 
-# --- 7. THE STABLE WORKER ---
+# --- 8. THE STABLE WORKER ---
 async def worker():
     api = DerivAPI(app_id=36544)
     try:
@@ -136,18 +148,18 @@ async def worker():
         
         while st.session_state.running:
             if total_pl <= -max_loss:
+                status_area.error("🛑 STOP LOSS HIT")
                 st.session_state.running = False; break
 
-            # FIX 2: Connection check before data pull
             try:
                 ticks = await api.ticks_history({"ticks_history": "1HZ100V", "count": 100, "end": "latest"})
                 prices = [float(p) for p in ticks["history"]["prices"]]
                 chart_area.line_chart(prices[-50:])
             except:
-                await api.authorize(v_deriv) # Re-auth if connection flickers
+                await api.authorize(v_deriv)
                 continue
 
-            # --- SCORING LOGIC (SCORE 9) ---
+            # --- SCORING LOGIC ---
             score = 0
             ma200, ma50 = sum(prices[-100:])/100, sum(prices[-50:])/50
             is_bull, is_bear = (prices[-1] > ma50 > ma200), (prices[-1] < ma50 < ma200)
@@ -170,18 +182,18 @@ async def worker():
                 await asyncio.sleep(8)
                 history = await api.profit_table({"profit_table": 1, "limit": 1})
                 res = history['profit_table']['transactions'][0]
-                p_val = round(float(res['sell_price']) - float(res['buy_price']), 2) # FIX 3: Rounding
+                p_val = round(float(res['sell_price']) - float(res['buy_price']), 2)
                 
                 if p_val > 0: st.session_state.wins += 1
                 else: st.session_state.losses += 1
                 
                 bal_upd = await api.balance()
-                st.session_state.live_bal = round(bal_upd['balance']['balance'], 2) # FIX 3: Rounding
+                st.session_state.live_bal = round(bal_upd['balance']['balance'], 2)
                 st.session_state.trades.append({"Time": time.strftime("%H:%M:%S"), "Type": direction, "Profit": p_val, "Score": f"{score}/10"})
                 send_tele(f"📊 {direction} {score}/10 | Profit: {p_val}", v_bot, v_cid)
                 await asyncio.sleep(90)
             
             await asyncio.sleep(2)
-    except Exception as e: st.error(f"Engine Error: {e}")
+    except Exception as e: st.error(f"Engine Alert: {e}")
 
 if st.session_state.running: asyncio.run(worker())
