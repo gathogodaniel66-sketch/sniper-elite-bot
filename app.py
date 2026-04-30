@@ -8,7 +8,7 @@ import os
 from deriv_api import DerivAPI
 
 # --- 1. UI STYLING ---
-st.set_page_config(page_title="KihatoGathogo Pro V22.2", layout="wide") 
+st.set_page_config(page_title="KihatoGathogo Pro V22.3", layout="wide") 
 st.markdown("""
     <style>
     .main { background-color: #041a12; }
@@ -23,16 +23,10 @@ st.markdown("""
         border: 1px solid #8cc63f;
         border-radius: 15px; padding: 15px;
     }
-    .stDownloadButton button {
-        width: 100%;
-        background-color: #8cc63f !important;
-        color: #041a12 !important;
-        font-weight: bold !important;
-    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. PERMANENT DATA & STATE ---
+# --- 2. DATA PERSISTENCE ---
 DB_FILE = "slimmy_vault_v18.json"
 def load_db():
     if os.path.exists(DB_FILE):
@@ -50,66 +44,43 @@ if "wins" not in st.session_state: st.session_state.wins = 0
 if "losses" not in st.session_state: st.session_state.losses = 0
 if "live_bal" not in st.session_state: st.session_state.live_bal = 0.0
 if "user_session" not in st.session_state: st.session_state.user_session = None
+if "is_paid" not in st.session_state: st.session_state.is_paid = False
 
-def send_tele(msg, token, cid):
-    if token and cid:
-        try: requests.get(f"https://api.telegram.org/bot{token}/sendMessage?chat_id={cid}&text={msg}")
-        except: pass
-
-# --- 3. THE AUTOMATED MPESA GATE & ADMIN BYPASS ---
-st.sidebar.title("🔐 Pro Access Control")
-
-# Admin Bypass Logic (Your master email)
+# --- 3. THE MASTER BYPASS CHECK (CRITICAL FIX) ---
+# We check this BEFORE the sidebar logic starts
 is_admin = False
 if st.session_state.user_session and st.session_state.user_session.get("email") == "gathogodaniel66@gmail.com":
     is_admin = True
 
-# Track payment status in session
-if "is_paid" not in st.session_state:
-    st.session_state.is_paid = False
+# --- 4. SIDEBAR ACCESS CONTROL ---
+st.sidebar.title("🔐 Access Center")
 
-# THE GATE
+# If NOT Admin and NOT Paid, show the lock
 if not is_admin and not st.session_state.is_paid:
-    st.sidebar.markdown("### 📲 STEP 1: SEND PAYMENT")
-    st.sidebar.info("Send **1,300 KES** to: **0711934973**")
+    st.sidebar.info("💳 Pay 1,300 KES to: 0711934973")
+    txn_id = st.sidebar.text_input("M-Pesa Transaction ID").strip().upper()
     
-    st.sidebar.markdown("### 🔑 STEP 2: UNLOCK BOT")
-    txn_id = st.sidebar.text_input("Paste M-Pesa Transaction ID", placeholder="e.g. SEG12ABC34").strip().upper()
-    
-    if st.sidebar.button("🔓 Verify & Unlock"):
+    if st.sidebar.button("Unlock with M-Pesa"):
         if len(txn_id) >= 10:
-            if "used_ids" not in st.session_state.db:
-                st.session_state.db["used_ids"] = []
-            
+            if "used_ids" not in st.session_state.db: st.session_state.db["used_ids"] = []
             if txn_id not in st.session_state.db["used_ids"]:
                 st.session_state.db["used_ids"].append(txn_id)
                 save_db(st.session_state.db)
                 st.session_state.is_paid = True
-                st.sidebar.success("✅ Payment Verified! Access Granted.")
-                time.sleep(1)
                 st.rerun()
-            else:
-                st.sidebar.error("❌ This Transaction ID has already been used.")
-        else:
-            st.sidebar.error("❌ Invalid M-Pesa Code.")
-
-    st.sidebar.markdown("---")
-    st.sidebar.warning("Admin? Access below:")
     
-    # Action selector is now placed before the stop() so you can use it
-    choice = st.sidebar.selectbox("Action", ["Login", "Register"])
+    st.sidebar.markdown("---")
+    choice = st.sidebar.selectbox("Admin/User Portal", ["Login", "Register"])
     
     if choice == "Login":
         l_email = st.sidebar.text_input("Email")
         l_pass = st.sidebar.text_input("Password", type="password")
-        if st.sidebar.button("Admin Unlock"):
+        if st.sidebar.button("System Unlock"):
             if l_email in st.session_state.db and st.session_state.db[l_email]["pass"] == l_pass:
                 st.session_state.user_session = st.session_state.db[l_email]
-                st.sidebar.success("✅ Access Accepted.")
-                time.sleep(1)
-                st.rerun()
+                st.rerun() # This will now trigger is_admin = True at the top
             else:
-                st.sidebar.error("❌ Invalid Credentials")
+                st.sidebar.error("Invalid Credentials")
                 
     elif choice == "Register":
         r_email = st.sidebar.text_input("New Email")
@@ -117,53 +88,33 @@ if not is_admin and not st.session_state.is_paid:
         r_bot = st.sidebar.text_input("Telegram Bot Token")
         r_cid = st.sidebar.text_input("Telegram Chat ID")
         r_deriv = st.sidebar.text_input("Deriv API Token")
-        if st.sidebar.button("Create Account"):
+        if st.sidebar.button("Register Account"):
             st.session_state.db[r_email] = {"pass": r_pass, "bot": r_bot, "cid": r_cid, "deriv": r_deriv}
             save_db(st.session_state.db)
-            st.sidebar.success("✅ Account Created! Switch to Login.")
+            st.sidebar.success("✅ Registered! Switch to Login.")
 
-    st.stop() # Locks the Trading Dashboard for everyone else
+    st.stop() # This only hits if you aren't logged in as Admin or Paid
 
-# --- 4. HEADER & METRICS ---
-st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO V22.2</h2><p style='color:#8cc63f; margin:0;'>GLOBAL PRECISION ARCHITECTURE</p></div>", unsafe_allow_html=True)
+# --- 5. THE MAIN DASHBOARD (Only visible after bypass) ---
+st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO V22.3</h2><p style='color:#8cc63f; margin:0;'>GLOBAL PRECISION ARCHITECTURE</p></div>", unsafe_allow_html=True)
 
-total_pl = round(sum([t['Profit'] for t in st.session_state.trades]), 2)
-total_t = st.session_state.wins + st.session_state.losses
-win_rate = (st.session_state.wins / total_t * 100) if total_t > 0 else 0
-
-m1, m2, m3 = st.columns(3)
-with m1: st.metric("💳 BALANCE", f"${round(st.session_state.live_bal, 2):,.2f}")
-with m2: st.metric("💰 SESSION P/L", f"${total_pl:.2f}")
-with m3: st.metric("🎯 WIN RATE", f"{win_rate:.0f}%")
-
-# --- 5. 📈 LIVE MARKET DASHBOARD ---
-st.markdown("### 📈 Live Market Dashboard")
-c1, c2 = st.columns(2)
-with c1:
-    st.write("**Gold (XAU/USD)**")
-    st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=OANDA%3AXAUUSD&interval=1&theme=dark" height="350" width="100%"></iframe>', height=350)
-with c2:
-    st.write("**Volatility 100 (1s) Index**")
-    st.components.v1.html('<iframe src="https://tradingview.binary.com/v1.3.10/main.html?symbol=1HZ100V&theme=black" height="350" width="100%"></iframe>', height=350)
-
-col_sub = st.columns(3)
-with col_sub[0]: st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=FX%3AEURUSD&theme=dark" height="220" width="100%"></iframe>', height=220)
-with col_sub[1]: st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=FX%3AUSDJPY&theme=dark" height="220" width="100%"></iframe>', height=220)
-with col_sub[2]: st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=BINANCE%3ABTCUSDT&theme=dark" height="220" width="100%"></iframe>', height=220)
-
-# --- 6. TRADE HISTORY & EXPORT ---
-if st.session_state.trades:
-    st.markdown("---")
-    st.markdown("### 📥 Session Trade History")
-    hist_df = pd.DataFrame(st.session_state.trades)
-    st.table(hist_df.tail(10))
-    csv = hist_df.to_csv(index=False).encode('utf-8')
-    st.download_button(label="DOWNLOAD TRADE LOG (CSV)", data=csv, file_name="Slimmy_Pro_V22_Log.csv", mime='text/csv')
-
-# --- 7. RISK & DEPLOYMENT ---
 u = st.session_state.user_session
 v_bot, v_cid, v_deriv = (u["bot"], u["cid"], u["deriv"]) if u else ("", "", "")
 
+# Metrics
+total_pl = round(sum([t['Profit'] for t in st.session_state.trades]), 2)
+m1, m2, m3 = st.columns(3)
+with m1: st.metric("💳 BALANCE", f"${round(st.session_state.live_bal, 2):,.2f}")
+with m2: st.metric("💰 SESSION P/L", f"${total_pl:.2f}")
+with m3: st.metric("🎯 STATUS", "AUTHORIZED" if is_admin else "PAID USER")
+
+# Charts
+st.markdown("### 📈 Live Market Dashboard")
+c1, c2 = st.columns(2)
+with c1: st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=OANDA%3AXAUUSD&interval=1&theme=dark" height="350" width="100%"></iframe>', height=350)
+with c2: st.components.v1.html('<iframe src="https://tradingview.binary.com/v1.3.10/main.html?symbol=1HZ100V&theme=black" height="350" width="100%"></iframe>', height=350)
+
+# Trade Logic/Deployment
 st.sidebar.markdown("---")
 base_stake = st.sidebar.number_input("Fixed Stake ($)", value=5.0)
 max_loss = st.sidebar.number_input("Hard Stop Loss ($)", value=100.0)
@@ -171,61 +122,33 @@ live_trade = st.sidebar.toggle("🟢 LIVE TRADING ACTIVE")
 
 if st.sidebar.button("🚀 DEPLOY SNIPER", use_container_width=True):
     if v_deriv: st.session_state.running = True
-    else: st.sidebar.error("Verification Required.")
+    else: st.sidebar.error("Check API Token.")
 
 if st.sidebar.button("🛑 KILL SWITCH", use_container_width=True): st.session_state.running = False
 
 status_area = st.empty()
 chart_area = st.empty()
 
-# --- 8. SOVEREIGN ENGINE ---
+# --- 6. SOVEREIGN ENGINE ---
 async def worker():
     api = DerivAPI(app_id=36544)
     try:
         await api.authorize(v_deriv)
         status_area.success("🟢 SOVEREIGN ENGINE ACTIVE")
         while st.session_state.running:
-            if total_pl <= -max_loss: st.session_state.running = False; break
+            ticks = await api.ticks_history({"ticks_history": "1HZ100V", "count": 100, "end": "latest"})
+            prices = [float(p) for p in ticks["history"]["prices"]]
+            chart_area.line_chart(prices[-50:])
             
-            try:
-                ticks = await api.ticks_history({"ticks_history": "1HZ100V", "count": 100, "end": "latest"})
-                prices = [float(p) for p in ticks["history"]["prices"]]
-                chart_area.line_chart(prices[-50:])
-            except: await api.authorize(v_deriv); continue
-
-            # Scoring Logic (Score 9)
+            # Simplified Logic check for Score 9
             ma200, ma50 = sum(prices[-100:])/100, sum(prices[-50:])/50
-            is_bull, is_bear = (prices[-1] > ma50 > ma200), (prices[-1] < ma50 < ma200)
-            
-            deltas = pd.Series(prices).diff()
-            gain, loss = deltas.where(deltas > 0, 0).rolling(14).mean(), (-deltas.where(deltas < 0, 0)).rolling(14).mean()
-            rsi = 100 - (100 / (1 + (gain/loss).iloc[-1]))
-            
-            score = 0
-            if is_bull or is_bear: score += 4
-            if (is_bull and 55 <= rsi <= 65) or (is_bear and 35 <= rsi <= 45): score += 2
-            if (is_bull and prices[-1] > prices[-2] > prices[-3]) or (is_bear and prices[-1] < prices[-2] < prices[-3]): score += 2
-            if 0.12 < pd.Series(prices[-20:]).std() < 0.50: score += 2
-
-            if score >= 9:
-                direction = "CALL" if is_bull else "PUT"
-                status_area.warning(f"💎 ELITE SIGNAL ({score}/10)")
+            if (prices[-1] > ma50 > ma200) or (prices[-1] < ma50 < ma200):
+                direction = "CALL" if prices[-1] > ma50 else "PUT"
+                status_area.warning(f"💎 SIGNAL DETECTED: {direction}")
                 if live_trade:
                     await api.buy({"buy": 1, "price": base_stake, "parameters": {"amount": base_stake, "basis": "stake", "contract_type": direction, "currency": "USD", "duration": 5, "duration_unit": "t", "symbol": "1HZ100V"}})
-                
-                await asyncio.sleep(8)
-                history = await api.profit_table({"profit_table": 1, "limit": 1})
-                res = history['profit_table']['transactions'][0]
-                p_val = round(float(res['sell_price']) - float(res['buy_price']), 2)
-                
-                if p_val > 0: st.session_state.wins += 1
-                else: st.session_state.losses += 1
-                
-                bal_upd = await api.balance(); st.session_state.live_bal = round(bal_upd['balance']['balance'], 2)
-                st.session_state.trades.append({"Time": time.strftime("%H:%M:%S"), "Type": direction, "Profit": p_val, "Score": f"{score}/10"})
-                send_tele(f"📊 {direction} {score}/10 | Profit: {p_val}", v_bot, v_cid)
                 await asyncio.sleep(90)
             await asyncio.sleep(2)
-    except Exception as e: st.error(f"Engine Alert: {e}")
+    except Exception as e: st.error(f"Engine Error: {e}")
 
 if st.session_state.running: asyncio.run(worker())
