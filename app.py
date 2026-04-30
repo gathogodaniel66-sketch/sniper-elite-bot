@@ -8,7 +8,7 @@ import os
 from deriv_api import DerivAPI
 
 # --- 1. UI STYLING ---
-st.set_page_config(page_title="Slimmy Pro V21.0", layout="wide") 
+st.set_page_config(page_title="KihatoGathogo Pro V21.0", layout="wide") 
 st.markdown("""
     <style>
     .main { background-color: #041a12; }
