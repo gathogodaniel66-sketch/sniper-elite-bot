@@ -8,7 +8,7 @@ import os
 from deriv_api import DerivAPI
 
 # --- 1. UI STYLING ---
-st.set_page_config(page_title="KihatoGathogo Pro V21.0", layout="wide") 
+st.set_page_config(page_title="KihatoGathogo Pro V22.1", layout="wide") 
 st.markdown("""
     <style>
     .main { background-color: #041a12; }
@@ -56,8 +56,58 @@ def send_tele(msg, token, cid):
         try: requests.get(f"https://api.telegram.org/bot{token}/sendMessage?chat_id={cid}&text={msg}")
         except: pass
 
-# --- 3. HEADER & METRICS ---
-st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO V21.0</h2><p style='color:#8cc63f; margin:0;'>GLOBAL PRECISION ARCHITECTURE</p></div>", unsafe_allow_html=True)
+# --- 3. THE AUTOMATED MPESA GATE & ADMIN BYPASS ---
+st.sidebar.title("🔐 Pro Access Control")
+
+# Admin Bypass Logic (Your master email)
+is_admin = False
+if st.session_state.user_session and st.session_state.user_session.get("email") == "gathogodaniel66@gmail.com":
+    is_admin = True
+
+# Track payment status in session
+if "is_paid" not in st.session_state:
+    st.session_state.is_paid = False
+
+# THE GATE
+if not is_admin and not st.session_state.is_paid:
+    st.sidebar.markdown("### 📲 STEP 1: SEND PAYMENT")
+    # Updated with your verified number
+    st.sidebar.info("Send **1,300 KES** to: **0711934973**")
+    
+    st.sidebar.markdown("### 🔑 STEP 2: UNLOCK BOT")
+    txn_id = st.sidebar.text_input("Paste M-Pesa Transaction ID", placeholder="e.g. SEG12ABC34").strip().upper()
+    
+    if st.sidebar.button("🔓 Verify & Unlock"):
+        if len(txn_id) >= 10:
+            if "used_ids" not in st.session_state.db:
+                st.session_state.db["used_ids"] = []
+            
+            # Prevent ID reuse
+            if txn_id not in st.session_state.db["used_ids"]:
+                st.session_state.db["used_ids"].append(txn_id)
+                save_db(st.session_state.db)
+                st.session_state.is_paid = True
+                st.sidebar.success("✅ Payment Verified! Access Granted.")
+                time.sleep(1)
+                st.rerun()
+            else:
+                st.sidebar.error("❌ This Transaction ID has already been used.")
+        else:
+            st.sidebar.error("❌ Invalid M-Pesa Code.")
+
+    st.sidebar.warning("Admin? Login to bypass.")
+    choice = st.sidebar.selectbox("Action", ["Login", "Register"])
+    if choice == "Login":
+        l_email = st.sidebar.text_input("Email")
+        l_pass = st.sidebar.text_input("Password", type="password")
+        if st.sidebar.button("Admin Unlock"):
+            if l_email in st.session_state.db and st.session_state.db[l_email]["pass"] == l_pass:
+                st.session_state.user_session = st.session_state.db[l_email]
+                st.rerun()
+    st.stop() # Locks everyone else
+
+# --- 4. HEADER & METRICS ---
+st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO V22.1</h2><p style='color:#8cc63f; margin:0;'>GLOBAL PRECISION ARCHITECTURE</p></div>", unsafe_allow_html=True)
 
 total_pl = round(sum([t['Profit'] for t in st.session_state.trades]), 2)
 total_t = st.session_state.wins + st.session_state.losses
@@ -68,79 +118,42 @@ with m1: st.metric("💳 BALANCE", f"${round(st.session_state.live_bal, 2):,.2f}
 with m2: st.metric("💰 SESSION P/L", f"${total_pl:.2f}")
 with m3: st.metric("🎯 WIN RATE", f"{win_rate:.0f}%")
 
-st.markdown("---")
-
-# --- 4. 📈 LIVE MARKET DASHBOARD ---
+# --- 5. 📈 LIVE MARKET DASHBOARD ---
 st.markdown("### 📈 Live Market Dashboard")
-col_main_1, col_main_2 = st.columns(2)
-with col_main_1:
+c1, c2 = st.columns(2)
+with c1:
     st.write("**Gold (XAU/USD)**")
     st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=OANDA%3AXAUUSD&interval=1&theme=dark" height="350" width="100%"></iframe>', height=350)
-with col_main_2:
+with c2:
     st.write("**Volatility 100 (1s) Index**")
     st.components.v1.html('<iframe src="https://tradingview.binary.com/v1.3.10/main.html?symbol=1HZ100V&theme=black" height="350" width="100%"></iframe>', height=350)
 
-col_sub_1, col_sub_2, col_sub_3 = st.columns(3)
-with col_sub_1:
-    st.write("**EUR/USD**")
-    st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=FX%3AEURUSD&interval=1&theme=dark" height="220" width="100%"></iframe>', height=220)
-with col_sub_2:
-    st.write("**USD/JPY**")
-    st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=FX%3AUSDJPY&interval=1&theme=dark" height="220" width="100%"></iframe>', height=220)
-with col_sub_3:
-    st.write("**Bitcoin (BTC/USD)**")
-    st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=BINANCE%3ABTCUSDT&interval=1&theme=dark" height="220" width="100%"></iframe>', height=220)
+col_c, col_d, col_e = st.columns(3)
+with col_c: st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=FX%3AEURUSD&theme=dark" height="220" width="100%"></iframe>', height=220)
+with col_d: st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=FX%3AUSDJPY&theme=dark" height="220" width="100%"></iframe>', height=220)
+with col_e: st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=BINANCE%3ABTCUSDT&theme=dark" height="220" width="100%"></iframe>', height=220)
 
-st.markdown("---")
-
-# --- 5. TRADE HISTORY & EXPORT ---
+# --- 6. TRADE HISTORY & EXPORT ---
 if st.session_state.trades:
+    st.markdown("---")
     st.markdown("### 📥 Session Trade History")
     hist_df = pd.DataFrame(st.session_state.trades)
     st.table(hist_df.tail(10))
-    csv_data = hist_df.to_csv(index=False).encode('utf-8')
-    st.download_button(label="DOWNLOAD TRADE LOG (CSV)", data=csv_data, file_name="Slimmy_Pro_V21_Log.csv", mime='text/csv')
-
-# --- 6. SIDEBAR & LOGIN ---
-st.sidebar.title("👥 User Center")
-choice = st.sidebar.selectbox("Action", ["Login", "Register"])
-
-if choice == "Login":
-    l_email = st.sidebar.text_input("Email")
-    l_pass = st.sidebar.text_input("Password", type="password")
-    if st.sidebar.button("Unlock Dashboard"):
-        if l_email in st.session_state.db and st.session_state.db[l_email]["pass"] == l_pass:
-            st.session_state.user_session = st.session_state.db[l_email]
-            st.sidebar.success("✅ Access Accepted. Welcome back.")
-            time.sleep(1)
-            st.rerun()
-        else:
-            st.sidebar.error("❌ Access Declined. Invalid credentials.")
-
-elif choice == "Register":
-    r_email = st.sidebar.text_input("New Email")
-    r_pass = st.sidebar.text_input("New Password", type="password")
-    r_bot = st.sidebar.text_input("Telegram Bot Token")
-    r_cid = st.sidebar.text_input("Telegram Chat ID")
-    r_deriv = st.sidebar.text_input("Deriv API Token")
-    if st.sidebar.button("Create Account"):
-        st.session_state.db[r_email] = {"pass": r_pass, "bot": r_bot, "cid": r_cid, "deriv": r_deriv}
-        save_db(st.session_state.db)
-        st.sidebar.success("✅ Account Created!")
+    csv = hist_df.to_csv(index=False).encode('utf-8')
+    st.download_button(label="DOWNLOAD TRADE LOG (CSV)", data=csv, file_name="Slimmy_Pro_V22_Log.csv", mime='text/csv')
 
 # --- 7. RISK & DEPLOYMENT ---
 u = st.session_state.user_session
 v_bot, v_cid, v_deriv = (u["bot"], u["cid"], u["deriv"]) if u else ("", "", "")
 
 st.sidebar.markdown("---")
-base_stake = st.sidebar.number_input("Fixed Stake Amount ($)", value=5.0)
+base_stake = st.sidebar.number_input("Fixed Stake ($)", value=5.0)
 max_loss = st.sidebar.number_input("Hard Stop Loss ($)", value=100.0)
 live_trade = st.sidebar.toggle("🟢 LIVE TRADING ACTIVE")
 
 if st.sidebar.button("🚀 DEPLOY SNIPER", use_container_width=True):
-    if v_deriv:
-        st.session_state.trades = []; st.session_state.wins = 0; st.session_state.losses = 0; st.session_state.running = True
-    else: st.sidebar.error("Verification Required: Please Login First.")
+    if v_deriv: st.session_state.running = True
+    else: st.sidebar.error("Verification Required.")
 
 if st.sidebar.button("🛑 KILL SWITCH", use_container_width=True): st.session_state.running = False
 
@@ -154,21 +167,17 @@ async def worker():
         await api.authorize(v_deriv)
         status_area.success("🟢 SOVEREIGN ENGINE ACTIVE")
         while st.session_state.running:
-            if total_pl <= -max_loss:
-                status_area.error("🛑 STOP LOSS HIT: SESSION TERMINATED")
-                st.session_state.running = False; break
+            if total_pl <= -max_loss: st.session_state.running = False; break
             
             try:
                 ticks = await api.ticks_history({"ticks_history": "1HZ100V", "count": 100, "end": "latest"})
                 prices = [float(p) for p in ticks["history"]["prices"]]
                 chart_area.line_chart(prices[-50:])
-            except:
-                await api.authorize(v_deriv); continue
+            except: await api.authorize(v_deriv); continue
 
-            # --- PRECISION SCORING (SCORE 9) ---
+            # Scoring Logic (Score 9)
             ma200, ma50 = sum(prices[-100:])/100, sum(prices[-50:])/50
-            is_bull = (prices[-1] > ma50 > ma200)
-            is_bear = (prices[-1] < ma50 < ma200)
+            is_bull, is_bear = (prices[-1] > ma50 > ma200), (prices[-1] < ma50 < ma200)
             
             deltas = pd.Series(prices).diff()
             gain, loss = deltas.where(deltas > 0, 0).rolling(14).mean(), (-deltas.where(deltas < 0, 0)).rolling(14).mean()
@@ -182,7 +191,7 @@ async def worker():
 
             if score >= 9:
                 direction = "CALL" if is_bull else "PUT"
-                status_area.warning(f"💎 ELITE SIGNAL DETECTED ({score}/10)")
+                status_area.warning(f"💎 ELITE SIGNAL ({score}/10)")
                 if live_trade:
                     await api.buy({"buy": 1, "price": base_stake, "parameters": {"amount": base_stake, "basis": "stake", "contract_type": direction, "currency": "USD", "duration": 5, "duration_unit": "t", "symbol": "1HZ100V"}})
                 
@@ -194,11 +203,10 @@ async def worker():
                 if p_val > 0: st.session_state.wins += 1
                 else: st.session_state.losses += 1
                 
-                bal_upd = await api.balance()
-                st.session_state.live_bal = round(bal_upd['balance']['balance'], 2)
+                bal_upd = await api.balance(); st.session_state.live_bal = round(bal_upd['balance']['balance'], 2)
                 st.session_state.trades.append({"Time": time.strftime("%H:%M:%S"), "Type": direction, "Profit": p_val, "Score": f"{score}/10"})
-                send_tele(f"📊 {direction} | Score: {score}/10 | Profit: {p_val}", v_bot, v_cid)
-                await asyncio.sleep(90) # Forced Cooldown
+                send_tele(f"📊 {direction} {score}/10 | Profit: {p_val}", v_bot, v_cid)
+                await asyncio.sleep(90)
             await asyncio.sleep(2)
     except Exception as e: st.error(f"Engine Alert: {e}")
 
