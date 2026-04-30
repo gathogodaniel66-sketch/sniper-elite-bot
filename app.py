@@ -5,10 +5,11 @@ import time
 import requests
 import json
 import os
+import plotly.graph_objects as go
 from deriv_api import DerivAPI
 
-# --- 1. UI STYLING (RESTORED TO V18.1 LOOK) ---
-st.set_page_config(page_title="Slimmy Pro V18.1", layout="centered") 
+# --- 1. UI STYLING (V18.1 LOOK) ---
+st.set_page_config(page_title="Slimmy Pro V18.8", layout="centered") 
 st.markdown("""
     <style>
     .main { background-color: #041a12; }
@@ -23,16 +24,11 @@ st.markdown("""
         border: 1px solid #8cc63f;
         border-radius: 15px; padding: 15px;
     }
-    .stDownloadButton button {
-        width: 100%;
-        background-color: #8cc63f !important;
-        color: #041a12 !important;
-        font-weight: bold !important;
-    }
+    .stDownloadButton button { width: 100%; background-color: #8cc63f !important; color: #041a12 !important; font-weight: bold !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. PERMANENT DATA & STATE ---
+# --- 2. DATA & STATE ---
 DB_FILE = "slimmy_vault_v18.json"
 def load_db():
     if os.path.exists(DB_FILE):
@@ -43,10 +39,7 @@ def load_db():
 def save_db(data):
     with open(DB_FILE, "w") as f: json.dump(data, f)
 
-# Memory Fix: Ensure DB is loaded into state
-if "db" not in st.session_state:
-    st.session_state.db = load_db()
-
+if "db" not in st.session_state: st.session_state.db = load_db()
 if "trades" not in st.session_state: st.session_state.trades = []
 if "running" not in st.session_state: st.session_state.running = False
 if "wins" not in st.session_state: st.session_state.wins = 0
@@ -60,7 +53,7 @@ def send_tele(msg, token, cid):
         except: pass
 
 # --- 3. HEADER ---
-st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO V18.5</h2><p style='color:#8cc63f; margin:0;'>QUANT-FILTERED ENGINE</p></div>", unsafe_allow_html=True)
+st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO V18.8</h2><p style='color:#8cc63f; margin:0;'>3D QUANTUM ANALYSIS</p></div>", unsafe_allow_html=True)
 
 total_pl = sum([t['Profit'] for t in st.session_state.trades])
 total_t = st.session_state.wins + st.session_state.losses
@@ -74,18 +67,14 @@ with c3: st.metric("🎯 WIN RATE", f"{win_rate:.0f}%")
 st.markdown("---")
 
 if st.session_state.trades:
-    st.markdown("### 📥 Export Session Data")
-    report_df = pd.DataFrame(st.session_state.trades)
-    csv = report_df.to_csv(index=False).encode('utf-8')
-    st.download_button(label="DOWNLOAD TRADE LOG (CSV)", data=csv, file_name=f"Slimmy_Pro_Report.csv", mime='text/csv')
+    csv = pd.DataFrame(st.session_state.trades).to_csv(index=False).encode('utf-8')
+    st.download_button(label="📥 DOWNLOAD PERFORMANCE LOG", data=csv, file_name=f"Slimmy_Report.csv", mime='text/csv')
 
-st.markdown("### 📈 Round Analysis")
-if st.session_state.trades:
-    st.table(pd.DataFrame(st.session_state.trades).tail(5))
-else:
-    st.info("No trade data available yet.")
+status_area = st.empty()
+chart_area = st.empty()
+three_d_area = st.empty() # Placeholder for 3D engine
 
-# --- 4. SIDEBAR & USER CENTER (RESTORED ORIGINAL LAYOUT) ---
+# --- 4. SIDEBAR & USER CENTER (RETAINED) ---
 st.sidebar.title("👥 User Center")
 choice = st.sidebar.selectbox("Action", ["Login", "Register", "Recovery"])
 
@@ -97,8 +86,7 @@ if choice == "Register":
     r_deriv = st.sidebar.text_input("Deriv Token")
     if st.sidebar.button("Create Pro Account"):
         st.session_state.db[r_email] = {"pass": r_pass, "bot": r_bot, "cid": r_cid, "deriv": r_deriv}
-        save_db(st.session_state.db)
-        st.sidebar.success("✅ Registered Successfully!")
+        save_db(st.session_state.db); st.sidebar.success("✅ Registered!")
 
 elif choice == "Login":
     l_email = st.sidebar.text_input("Email")
@@ -109,7 +97,7 @@ elif choice == "Login":
             st.sidebar.success("✅ Access Granted")
         else: st.sidebar.error("❌ Invalid Credentials")
 
-# --- 5. RISK & ENGINE (RESTORED ORIGINAL INPUTS) ---
+# --- 5. RISK & ENGINE ---
 u = st.session_state.user_session
 v_bot, v_cid, v_deriv = (u["bot"], u["cid"], u["deriv"]) if u else ("", "", "")
 
@@ -127,62 +115,54 @@ if admin == "SlimmyAdmin2026":
 
 if st.sidebar.button("🚀 DEPLOY SNIPER", use_container_width=True):
     if v_deriv:
-        st.session_state.trades = []; st.session_state.wins = 0; st.session_state.losses = 0
-        st.session_state.running = True
+        st.session_state.trades = []; st.session_state.wins = 0; st.session_state.losses = 0; st.session_state.running = True
     else: st.sidebar.error("Login first!")
 
 if st.sidebar.button("🛑 KILL SWITCH", use_container_width=True): st.session_state.running = False
 
-status_area = st.empty()
-chart_area = st.empty()
-
-# --- 6. THE UPGRADED WORKER (ONLY PART CHANGED) ---
+# --- 6. THE ENGINE (MULTI-LAYER + 3D) ---
 async def worker():
     api = DerivAPI(app_id=36544)
     try:
         await api.authorize(v_deriv)
-        status_area.success("🟢 SOVEREIGN QUANT ACTIVE")
+        status_area.success("🟢 QUANT ENGINE ACTIVE")
         
-        # Internal tracking for Martingale limit discussed
         m_step = 0
-        current_dynamic_stake = base_stake
+        current_stake = base_stake
 
         while st.session_state.running:
-            if total_pl <= -max_loss:
-                send_tele("🛑 STOP LOSS HIT.", v_bot, v_cid)
-                st.session_state.running = False; break
-
-            # Multi-layer data pull
-            ticks = await api.ticks_history({"ticks_history": "1HZ100V", "count": 200, "end": "latest"})
+            ticks = await api.ticks_history({"ticks_history": "1HZ100V", "count": 150, "end": "latest"})
             prices = [float(p) for p in ticks["history"]["prices"]]
             chart_area.line_chart(prices[-50:])
             
-            # --- 🧠 CONFLUENCE SCORING ENGINE ---
-            score = 0
-            ma200, ma50, ma10 = sum(prices[-200:])/200, sum(prices[-50:])/50, sum(prices[-10:])/10
+            # --- CALCULATIONS ---
+            ma200, ma50 = sum(prices[-150:])/150, sum(prices[-50:])/50
+            is_bull, is_bear = (prices[-1] > ma50 > ma200), (prices[-1] < ma50 < ma200)
             
-            # 1. Trend Filter (4 Pts)
-            is_bull = (prices[-1] > ma50 > ma200)
-            is_bear = (prices[-1] < ma50 < ma200)
-            if is_bull or is_bear: score += 4
-            
-            # 2. RSI Vectoring (3 Pts)
             deltas = pd.Series(prices).diff()
-            gain, loss = deltas.where(deltas > 0, 0).rolling(14).mean(), (-deltas.where(deltas < 0, 0)).rolling(14).mean()
+            gain = deltas.where(deltas > 0, 0).rolling(14).mean()
+            loss = (-deltas.where(deltas < 0, 0)).rolling(14).mean()
             rsi_s = 100 - (100 / (1 + (gain/loss)))
             rsi = rsi_s.iloc[-1]
-            if (is_bull and 50 < rsi < 70) or (is_bear and 30 < rsi < 50): score += 3
             
-            # 3. Volatility Filter (3 Pts)
+            # --- 🌐 3D VISUALIZATION ENGINE ---
+            with three_d_area.expander("🌐 VIEW 3D MARKET DEPTH"):
+                df_3d = pd.DataFrame({'T': range(50), 'P': prices[-50:], 'R': rsi_s.iloc[-50:].values})
+                fig = go.Figure(data=[go.Scatter3d(x=df_3d['T'], y=df_3d['R'], z=df_3d['P'], mode='lines', line=dict(color='#8cc63f', width=6))])
+                fig.update_layout(scene=dict(xaxis_title='Ticks', yaxis_title='Momentum', zaxis_title='Price', bgcolor="#041a12"), paper_bgcolor="#041a12", margin=dict(l=0, r=0, b=0, t=0), height=350)
+                st.plotly_chart(fig, use_container_width=True)
+
+            # --- DECISION ---
+            score = 0
+            if is_bull or is_bear: score += 4
+            if (is_bull and 50 < rsi < 70) or (is_bear and 30 < rsi < 50): score += 3
             if pd.Series(prices[-20:]).std() > 0.15: score += 3
 
-            # --- EXECUTION ---
             if score >= 7:
-                direction = "CALL" if is_bull else "PUT"
-                status_area.warning(f"💎 HIGH CONFIDENCE ({score}/10): {direction}")
-                
+                trade_type = "CALL" if is_bull else "PUT"
+                status_area.warning(f"💎 HIGH CONFIDENCE ({score}/10)")
                 if live_trade:
-                    await api.buy({"buy": 1, "price": current_dynamic_stake, "parameters": {"amount": current_dynamic_stake, "basis": "stake", "contract_type": direction, "currency": "USD", "duration": 5, "duration_unit": "t", "symbol": "1HZ100V"}})
+                    await api.buy({"buy": 1, "price": current_stake, "parameters": {"amount": current_stake, "basis": "stake", "contract_type": trade_type, "currency": "USD", "duration": 5, "duration_unit": "t", "symbol": "1HZ100V"}})
                 
                 await asyncio.sleep(8)
                 history = await api.profit_table({"profit_table": 1, "limit": 1})
@@ -190,17 +170,16 @@ async def worker():
                 p_val = float(res['sell_price']) - float(res['buy_price'])
                 
                 if p_val > 0:
-                    st.session_state.wins += 1; current_dynamic_stake = base_stake; m_step = 0
+                    st.session_state.wins += 1; current_stake = base_stake; m_step = 0
                 else:
                     st.session_state.losses += 1; m_step += 1
-                    # Martingale Cap at 4 steps for safety
-                    if m_step < 4: current_dynamic_stake = round(current_dynamic_stake * martingale, 2)
-                    else: current_dynamic_stake = base_stake; m_step = 0
+                    if m_step < 4: current_stake = round(current_stake * martingale, 2)
+                    else: current_stake = base_stake; m_step = 0
                 
                 bal_upd = await api.balance(); st.session_state.live_bal = bal_upd['balance']['balance']
-                st.session_state.trades.append({"Time": time.strftime("%H:%M:%S"), "Type": direction, "Profit": p_val, "Score": f"{score}/10"})
+                st.session_state.trades.append({"Time": time.strftime("%H:%M:%S"), "Type": trade_type, "Profit": p_val, "Score": f"{score}/10"})
                 send_tele(f"💰 Result: {p_val} | Conf: {score}/10", v_bot, v_cid)
-                await asyncio.sleep(60) # Cooldown
+                await asyncio.sleep(60)
             await asyncio.sleep(1)
     except Exception as e: st.error(f"Error: {e}")
 
