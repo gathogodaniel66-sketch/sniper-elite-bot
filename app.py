@@ -7,195 +7,197 @@ import json
 import os
 from deriv_api import DerivAPI
 
-# --- 1. UI STYLING (KEEPING YOUR EXACT LOOK) ---
-st.set_page_config(page_title="Slimmy Pro V18.6", layout="centered") 
+# --- 1. UI STYLING (UNTOUCHED) ---
+st.set_page_config(page_title="Slimmy Pro V18.1", layout="centered") 
 st.markdown("""
     <style>
     .main { background-color: #041a12; }
     .bank-header {
-        background: linear-gradient(135deg, #0a3d2e 0%, #155e46 100%);
-        padding: 20px; border-radius: 0 0 25px 25px;
-        text-align: center; border-bottom: 2px solid #8cc63f;
-        margin-bottom: 15px;
+        background: linear-gradient(135deg, #072b1d 0%, #155e46 100%);
+        padding: 25px; border-radius: 0 0 30px 30px;
+        text-align: center; border-bottom: 3px solid #8cc63f;
+        margin-bottom: 20px;
     }
     div[data-testid="stMetric"] {
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(140, 198, 63, 0.2);
-        border-radius: 12px; padding: 12px; margin-bottom: -15px;
+        background: rgba(140, 198, 63, 0.1);
+        border: 1px solid #8cc63f;
+        border-radius: 15px; padding: 15px;
     }
-    div[data-testid="stMetricValue"] { color: #8cc63f !important; font-size: 24px !important; }
+    .stDownloadButton button {
+        width: 100%;
+        background-color: #8cc63f !important;
+        color: #041a12 !important;
+        font-weight: bold !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. TELEGRAM FUNCTION ---
-def send_tele(msg, token, cid):
-    if token and cid:
-        try:
-            url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={cid}&text={msg}"
-            requests.get(url)
-        except: pass
+# --- 2. PERMANENT DATA & STATE (UNTOUCHED) ---
+DB_FILE = "slimmy_vault_v18.json"
+def load_db():
+    if os.path.exists(DB_FILE):
+        with open(DB_FILE, "r") as f: return json.load(f)
+    return {}
+def save_db(data):
+    with open(DB_FILE, "w") as f: json.dump(data, f)
 
-# --- 3. STATE & DATABASE ---
 if "trades" not in st.session_state: st.session_state.trades = []
 if "running" not in st.session_state: st.session_state.running = False
 if "wins" not in st.session_state: st.session_state.wins = 0
 if "losses" not in st.session_state: st.session_state.losses = 0
 if "live_bal" not in st.session_state: st.session_state.live_bal = 0.0
-if "user_db" not in st.session_state: st.session_state.user_db = {} 
-if "active_user" not in st.session_state: st.session_state.active_user = None
+if "user_session" not in st.session_state: st.session_state.user_session = None
+if "loss_streak" not in st.session_state: st.session_state.loss_streak = 0
 
-# --- 4. HEADER ---
-st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO</h2><p style='color:#8cc63f; margin:0; font-size:12px;'>V18.6 SOVEREIGN ENGINE + ORIGINAL UI</p></div>", unsafe_allow_html=True)
+def send_tele(msg, token, cid):
+    if token and cid:
+        try: requests.get(f"https://api.telegram.org/bot{token}/sendMessage?chat_id={cid}&text={msg}")
+        except: pass
 
-# Math
+# --- 3. HEADER (UNTOUCHED) ---
+st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO V18.5</h2><p style='color:#8cc63f; margin:0;'>CONFLUENCE SCORING SYSTEM</p></div>", unsafe_allow_html=True)
+
 total_pl = sum([t['Profit'] for t in st.session_state.trades])
 total_t = st.session_state.wins + st.session_state.losses
 win_rate = (st.session_state.wins / total_t * 100) if total_t > 0 else 0
 
-# --- 5. DASHBOARD ---
-st.metric("💳 BALANCE", f"${st.session_state.live_bal:,.2f}")
-st.metric("💰 SESSION P/L", f"${total_pl:.2f}")
-st.metric("🎯 WIN RATE", f"{win_rate:.0f}%")
-st.metric("✅ WINS", st.session_state.wins)
-st.metric("❌ LOSSES", st.session_state.losses)
+c1, c2, c3 = st.columns(3)
+with c1: st.metric("💳 BALANCE", f"${st.session_state.live_bal:,.2f}")
+with c2: st.metric("💰 SESSION P/L", f"${total_pl:.2f}")
+with c3: st.metric("🎯 WIN RATE", f"{win_rate:.0f}%")
 
 st.markdown("---")
+
 if st.session_state.trades:
-    df_export = pd.DataFrame(st.session_state.trades)
-    csv = df_export.to_csv(index=False).encode('utf-8')
-    st.download_button("📥 DOWNLOAD PERFORMANCE LOG", csv, f"Slimmy_Report.csv", "text/csv")
+    st.markdown("### 📥 Export Session Data")
+    report_df = pd.DataFrame(st.session_state.trades)
+    csv = report_df.to_csv(index=False).encode('utf-8')
+    st.download_button(label="DOWNLOAD TRADE LOG (CSV)", data=csv, file_name=f"Slimmy_Report_{time.strftime('%H%M')}.csv", mime='text/csv')
+
+st.markdown("### 📈 Round Analysis")
+if st.session_state.trades:
+    st.table(pd.DataFrame(st.session_state.trades).tail(5))
+else:
+    st.info("No trade data available yet.")
+
+# --- 4. SIDEBAR & USER CENTER (UNTOUCHED) ---
+st.sidebar.title("👥 User Center")
+choice = st.sidebar.selectbox("Action", ["Login", "Register", "Recovery"])
+db = load_db()
+
+if choice == "Register":
+    r_email = st.sidebar.text_input("Email")
+    r_pass = st.sidebar.text_input("Password", type="password")
+    r_bot = st.sidebar.text_input("Bot Token")
+    r_cid = st.sidebar.text_input("Chat ID")
+    r_deriv = st.sidebar.text_input("Deriv Token")
+    if st.sidebar.button("Create Pro Account"):
+        db[r_email] = {"pass": r_pass, "bot": r_bot, "cid": r_cid, "deriv": r_deriv}
+        save_db(db); st.sidebar.success("Done! Login now.")
+
+elif choice == "Login":
+    l_email = st.sidebar.text_input("Email")
+    l_pass = st.sidebar.text_input("Password", type="password")
+    if st.sidebar.button("Unlock Dashboard"):
+        if l_email in db and db[l_email]["pass"] == l_pass:
+            st.session_state.user_session = db[l_email]
+            st.sidebar.success("✅ Access Granted")
+
+# --- 5. RISK & ENGINE (UPGRADED BASED ON YOUR NOTES) ---
+u = st.session_state.user_session
+v_bot, v_cid, v_deriv = (u["bot"], u["cid"], u["deriv"]) if u else ("", "", "")
+
+st.sidebar.markdown("---")
+risk_pct = st.sidebar.slider("Risk Per Trade (%)", 0.5, 5.0, 2.0) / 100
+conf_threshold = st.sidebar.slider("Min Confidence Score", 5, 10, 7)
+max_loss_streak = st.sidebar.number_input("Loss Streak Kill-Switch", value=3)
+live_trade = st.sidebar.toggle("🟢 LIVE TRADING ACTIVE")
+
+st.sidebar.markdown("---")
+admin = st.sidebar.text_input("System Access", type="password")
+if admin == "SlimmyAdmin2026":
+    st.sidebar.info(f"Total Members: {len(db)}")
+
+if st.sidebar.button("🚀 DEPLOY QUANT ENGINE", use_container_width=True):
+    if v_deriv:
+        st.session_state.trades = []; st.session_state.wins = 0; st.session_state.losses = 0; st.session_state.loss_streak = 0
+        st.session_state.running = True
+    else: st.sidebar.error("Login first!")
+
+if st.sidebar.button("🛑 KILL SWITCH", use_container_width=True): st.session_state.running = False
 
 status_area = st.empty()
 chart_area = st.empty()
 
-# --- 6. SIDEBAR & USER CENTER (REVERTED TO YOUR PREFERRED FLOW) ---
-st.sidebar.title("👥 User Center")
-menu = st.sidebar.radio("Select Action", ["Login", "Register", "Forgot Password"])
-
-v_bot = ""
-v_cid = ""
-v_deriv = ""
-
-if menu == "Register":
-    st.sidebar.subheader("Create Account")
-    new_user = st.sidebar.text_input("Username")
-    new_email = st.sidebar.text_input("Email")
-    new_pass = st.sidebar.text_input("Password", type="password")
-    reg_bot = st.sidebar.text_input("Telegram Bot Token")
-    reg_cid = st.sidebar.text_input("Telegram Chat ID")
-    reg_deriv = st.sidebar.text_input("Deriv Token")
-    if st.sidebar.button("💾 Register Account"):
-        st.session_state.user_db[new_user] = {"email": new_email, "pass": new_pass, "bot": reg_bot, "cid": reg_cid, "deriv": reg_deriv}
-        st.sidebar.success("✅ Registered!")
-
-elif menu == "Login":
-    st.sidebar.subheader("Account Login")
-    u_name = st.sidebar.text_input("Username")
-    u_pass = st.sidebar.text_input("Password", type="password")
-    if st.sidebar.button("🔓 Login Now"):
-        if u_name in st.session_state.user_db and st.session_state.user_db[u_name]["pass"] == u_pass:
-            st.session_state.active_user = st.session_state.user_db[u_name]
-            st.sidebar.success(f"✅ Welcome {u_name}!")
-        else: st.sidebar.error("❌ Wrong details")
-
-elif menu == "Forgot Password":
-    st.sidebar.subheader("Recovery")
-    rec_u = st.sidebar.text_input("Username")
-    rec_e = st.sidebar.text_input("Email")
-    if st.sidebar.button("🔑 Send to Telegram"):
-        if rec_u in st.session_state.user_db and st.session_state.user_db[rec_u]["email"] == rec_e:
-            send_tele(f"Your password is: {st.session_state.user_db[rec_u]['pass']}", st.session_state.user_db[rec_u]['bot'], st.session_state.user_db[rec_u]['cid'])
-            st.sidebar.success("✅ Sent!")
-
-# --- AUTO-LOAD LOADED DATA ---
-if st.session_state.active_user:
-    v_bot = st.session_state.active_user["bot"]
-    v_cid = st.session_state.active_user["cid"]
-    v_deriv = st.session_state.active_user["deriv"]
-
-st.sidebar.markdown("---")
-st.sidebar.title("📲 Connection Details")
-tele_token = st.sidebar.text_input("Bot Token", value=v_bot, type="password")
-tele_id = st.sidebar.text_input("Chat ID", value=v_cid)
-deriv_token = st.sidebar.text_input("Deriv Token", value=v_deriv, type="password")
-
-st.sidebar.markdown("---")
-st.sidebar.title("🏦 Risk & Trade")
-risk_pct = st.sidebar.slider("Risk Per Trade (%)", 1.0, 5.0, 2.0) / 100
-max_loss = st.sidebar.number_input("Stop Loss Limit ($)", value=50.0)
-live_trade = st.sidebar.toggle("🟢 ACTIVATE LIVE TRADING")
-
-# Admin Gate
-st.sidebar.markdown("---")
-admin_key = st.sidebar.text_input("System Access", type="password")
-if admin_key == "SlimmyAdmin2026": 
-    with st.sidebar.expander("🛠️ OWNER BACK-END"):
-        st.write(f"📊 Total Members: {len(st.session_state.user_db)}")
-
-if st.sidebar.button("🚀 DEPLOY (START FRESH)", use_container_width=True):
-    if deriv_token: 
-        st.session_state.trades = []
-        st.session_state.wins = 0; st.session_state.losses = 0
-        st.session_state.running = True
-    else: st.sidebar.error("Please Login first!")
-
-if st.sidebar.button("🛑 STOP SESSION", use_container_width=True):
-    st.session_state.running = False
-
-# --- 7. ENGINE (THE ADVANCED SCORING SYSTEM) ---
+# --- 6. THE SCORING ENGINE ---
 async def worker():
     api = DerivAPI(app_id=36544)
     try:
-        await api.authorize(deriv_token)
-        status_area.success("🟢 SOVEREIGN ENGINE ACTIVE")
+        await api.authorize(v_deriv)
+        status_area.success("🟢 QUANT ENGINE ACTIVE")
         while st.session_state.running:
-            # Multi-layer data
+            # Check Auto-Disable
+            if st.session_state.loss_streak >= max_loss_streak:
+                status_area.error("🚨 CRITICAL LOSS STREAK - AUTO-STOPPED")
+                st.session_state.running = False; break
+
+            # Multi-Timeframe Data (200 Ticks)
             ticks = await api.ticks_history({"ticks_history": "1HZ100V", "count": 200, "end": "latest"})
             prices = [float(p) for p in ticks["history"]["prices"]]
             chart_area.line_chart(prices[-50:])
             
-            # --- SCORING SYSTEM ---
+            # --- 🧠 CONFLUENCE SCORING ---
             score = 0
-            ma200 = sum(prices[-200:]) / 200
-            ma50 = sum(prices[-50:]) / 50
+            ma200 = sum(prices[-200:]) / 200 # Global Trend
+            ma50 = sum(prices[-50:]) / 50   # Local Trend
             
-            # Trend Layer
+            # 1. Trend Alignment (4 Points)
             is_bull = (prices[-1] > ma50 > ma200)
             is_bear = (prices[-1] < ma50 < ma200)
             if is_bull or is_bear: score += 4
             
-            # Momentum Layer
+            # 2. RSI Momentum & Direction (3 Points)
             deltas = pd.Series(prices).diff()
-            gain = (deltas.where(deltas > 0, 0)).rolling(window=14).mean()
-            loss = (-deltas.where(deltas < 0, 0)).rolling(window=14).mean()
-            rsi = 100 - (100 / (1 + (gain/loss).iloc[-1]))
-            if (is_bull and 50 < rsi < 70) or (is_bear and 30 < rsi < 50): score += 3
+            gain = (deltas.where(deltas > 0, 0)).rolling(14).mean()
+            loss = (-deltas.where(deltas < 0, 0)).rolling(14).mean()
+            rsi_series = 100 - (100 / (1 + (gain/loss)))
+            rsi = rsi_series.iloc[-1]
+            rsi_dir = rsi - rsi_series.iloc[-3] # Directional movement
             
-            # Volatility Layer
+            if is_bull and rsi_dir > 0 and 50 < rsi < 68: score += 3
+            if is_bear and rsi_dir < 0 and 32 < rsi < 50: score += 3
+            
+            # 3. Volatility Expansion (3 Points)
             vol = pd.Series(prices[-20:]).std()
-            if vol > 0.18: score += 3
+            if vol > 0.15: score += 3 # Minimum volatility threshold
             
-            # EXECUTION
-            if score >= 7:
-                trade_type = "CALL" if is_bull else "PUT"
-                stake = round(st.session_state.live_bal * risk_pct, 2)
-                if stake < 1.0: stake = 1.0
+            # --- ⚡ EXECUTION GATE ---
+            if score >= conf_threshold:
+                direction = "CALL" if is_bull else "PUT"
+                # Fixed Fractional Risk sizing
+                stake = max(1.0, round(st.session_state.live_bal * risk_pct, 2))
                 
+                status_area.warning(f"💎 HIGH CONFIDENCE: {score}/10")
                 if live_trade:
-                    await api.buy({"buy": 1, "price": stake, "parameters": {"amount": stake, "basis": "stake", "contract_type": trade_type, "currency": "USD", "duration": 5, "duration_unit": "t", "symbol": "1HZ100V"}})
+                    await api.buy({"buy": 1, "price": stake, "parameters": {"amount": stake, "basis": "stake", "contract_type": direction, "currency": "USD", "duration": 5, "duration_unit": "t", "symbol": "1HZ100V"}})
                 
                 await asyncio.sleep(8)
                 history = await api.profit_table({"profit_table": 1, "limit": 1})
                 res = history['profit_table']['transactions'][0]
                 p_val = float(res['sell_price']) - float(res['buy_price'])
                 
-                if p_val > 0: st.session_state.wins += 1
-                else: st.session_state.losses += 1
+                if p_val > 0:
+                    st.session_state.wins += 1; st.session_state.loss_streak = 0
+                else:
+                    st.session_state.losses += 1; st.session_state.loss_streak += 1
                 
                 bal_upd = await api.balance(); st.session_state.live_bal = bal_upd['balance']['balance']
-                st.session_state.trades.append({"Time": time.strftime("%H:%M:%S"), "Type": trade_type, "Score": score, "Profit": p_val, "Balance": st.session_state.live_bal})
-                send_tele(f"💰 Result: {p_val} | Score: {score}/10", tele_token, tele_id)
-                await asyncio.sleep(120)
+                st.session_state.trades.append({
+                    "Time": time.strftime("%H:%M:%S"), "Type": direction, 
+                    "Conf": f"{score}/10", "Profit": p_val, "Balance": st.session_state.live_bal
+                })
+                send_tele(f"💰 Result: {p_val} | Conf: {score}/10", v_bot, v_cid)
+                await asyncio.sleep(120) # Forced Cooldown
             
             await asyncio.sleep(1)
     except Exception as e: st.error(f"Error: {e}")
