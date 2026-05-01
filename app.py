@@ -83,11 +83,7 @@ with col_main_2:
 # --- 5. SIDEBAR & CONNECTION CENTER ---
 st.sidebar.title("👥 User Center")
 
-# CONFIGURATION - Update these when you get your unique App ID
-MY_APP_ID = "1089" 
-REDIRECT_URL = "https://sniper-elite-bot-pxavvwkldtde3esh2eeaos.streamlit.app"
-
-# --- DETECT OAUTH TOKENS FROM URL ---
+# --- NEW: DETECT OAUTH TOKENS FROM URL ---
 query_params = st.query_params
 if "token1" in query_params:
     st.session_state.magic_token = query_params["token1"]
@@ -119,26 +115,25 @@ elif choice == "Register":
         st.sidebar.success("✅ Account Created!")
 
 elif choice == "Secure Gateway":
-    st.sidebar.write("Can't find your token? Log in securely below.")
-    # Added redirect_uri to prevent Deriv security errors
-    auth_url = f"https://oauth.deriv.com/oauth2/authorize?app_id={MY_APP_ID}&l=en&brand=deriv&redirect_uri={REDIRECT_URL}"
+    st.sidebar.write("Can't find your token? Click below to log in securely.")
+    MY_APP_ID = "1089" # Standard test ID
+    auth_url = f"https://oauth.deriv.com/oauth2/authorize?app_id={MY_APP_ID}&l=en&brand=deriv"
     st.sidebar.markdown(f'''
         <a href="{auth_url}" target="_self" style="text-decoration:none;">
             <div style="background-color:#8cc63f; color:#041a12; text-align:center; 
             padding:12px; border-radius:8px; font-weight:bold; cursor:pointer;">
-                🚀 MAGIC LOGIN BUTTON
+                🚀 CONNECT VIA DERIV OAUTH
             </div>
         </a>
     ''', unsafe_allow_html=True)
 
 # --- 6. SOVEREIGN ENGINE ---
 u = st.session_state.user_session
-# Priority check: Use Magic Login token if available, otherwise manual token
+# Priority: Magic Token > Manual Token
 v_deriv = st.session_state.get("magic_token") or (u["deriv"] if u else "")
 v_bot, v_cid = (u["bot"], u["cid"]) if u else ("", "")
 
 st.sidebar.markdown("---")
-# Restored focus on protected capital and strict targets
 base_stake = st.sidebar.number_input("Fixed Stake ($)", value=1.0)
 max_loss = st.sidebar.number_input("Hard Stop Loss ($)", value=15.0)
 live_trade = st.sidebar.toggle("🟢 LIVE TRADING ACTIVE")
@@ -154,8 +149,7 @@ status_area = st.empty()
 chart_area = st.empty()
 
 async def worker():
-    # Use the same ID as the Secure Gateway
-    api = DerivAPI(app_id=int(MY_APP_ID))
+    api = DerivAPI(app_id=1089)
     try:
         auth = await api.authorize(v_deriv) 
         st.session_state.live_bal = float(auth['authorize']['balance']) 
@@ -171,7 +165,7 @@ async def worker():
             prices = [float(p) for p in ticks["history"]["prices"]]
             chart_area.line_chart(prices[-50:])
 
-            # --- PRECISION SCORING (SCORE 9) ---
+            # --- PRECISION SCORING (STRICT SCORE 9) ---
             ma200, ma50 = sum(prices[-100:])/100, sum(prices[-50:])/50
             is_bull = (prices[-1] > ma50 > ma200)
             is_bear = (prices[-1] < ma50 < ma200)
@@ -206,6 +200,5 @@ async def worker():
             await asyncio.sleep(1)
     except Exception as e: status_area.error(f"Engine Alert: {e}")
 
-# Run worker loop if deployed
 if st.session_state.running:
     asyncio.run(worker())
