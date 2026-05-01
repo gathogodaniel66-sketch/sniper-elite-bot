@@ -82,8 +82,14 @@ with col_main_2:
 
 # --- 5. SIDEBAR & LOGIN ---
 st.sidebar.title("👥 User Center")
-# RESTORED REGISTER ICON/ACTION
-choice = st.sidebar.selectbox("Action", ["Login", "Register"])
+
+# --- MAGIC LOGIN LOGIC (ACCOMMODATES OAUTH USERS) ---
+query_params = st.query_params
+if "token1" in query_params:
+    st.session_state.magic_token = query_params["token1"]
+    st.sidebar.success("✅ Magic Login Active!")
+
+choice = st.sidebar.selectbox("Action", ["Login", "Register", "Secure Gateway"])
 
 if choice == "Login":
     l_email = st.sidebar.text_input("Email")
@@ -108,9 +114,25 @@ elif choice == "Register":
         save_db(st.session_state.db)
         st.sidebar.success("✅ Account Created!")
 
+elif choice == "Secure Gateway":
+    st.sidebar.write("Can't find your token? Use the button below.")
+    # Replace '1089' with your App ID if you registered one
+    MY_APP_ID = "1089" 
+    auth_url = f"https://oauth.deriv.com/oauth2/authorize?app_id={MY_APP_ID}&l=en&brand=deriv"
+    st.sidebar.markdown(f'''
+        <a href="{auth_url}" target="_self" style="text-decoration:none;">
+            <div style="background-color:#8cc63f; color:#041a12; text-align:center; 
+            padding:10px; border-radius:5px; font-weight:bold; cursor:pointer;">
+                🚀 MAGIC LOGIN BUTTON
+            </div>
+        </a>
+    ''', unsafe_allow_html=True)
+
 # --- 6. SOVEREIGN ENGINE ---
 u = st.session_state.user_session
-v_bot, v_cid, v_deriv = (u["bot"], u["cid"], u["deriv"]) if u else ("", "", "")
+# Checks for Magic Token first, then falls back to Manual Token
+v_deriv = st.session_state.get("magic_token") or (u["deriv"] if u else "")
+v_bot, v_cid = (u["bot"], u["cid"]) if u else ("", "")
 
 st.sidebar.markdown("---")
 base_stake = st.sidebar.number_input("Fixed Stake Amount ($)", value=1.0)
@@ -120,7 +142,7 @@ live_trade = st.sidebar.toggle("🟢 LIVE TRADING ACTIVE")
 if st.sidebar.button("🚀 DEPLOY SNIPER", use_container_width=True):
     if v_deriv:
         st.session_state.trades = []; st.session_state.wins = 0; st.session_state.losses = 0; st.session_state.running = True
-    else: st.sidebar.error("Verification Required: Please Login First.")
+    else: st.sidebar.error("Verification Required: Please Login or use Secure Gateway.")
 
 if st.sidebar.button("🛑 KILL SWITCH", use_container_width=True): st.session_state.running = False
 
@@ -128,6 +150,7 @@ status_area = st.empty()
 chart_area = st.empty()
 
 async def worker():
+    # Ensure this App ID matches the one in Secure Gateway
     api = DerivAPI(app_id=1089)
     try:
         auth = await api.authorize(v_deriv) 
@@ -177,7 +200,6 @@ async def worker():
             await asyncio.sleep(1)
     except Exception as e: status_area.error(f"Engine Alert: {e}")
 
+# This part ensures the worker runs when the bot is deployed
 if st.session_state.running:
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(worker())
+    asyncio.run(worker())
