@@ -7,7 +7,7 @@ import json
 import os
 from deriv_api import DerivAPI
 
-# --- 1. UI STYLING (Unchanged) ---
+# --- 1. UI STYLING ---
 st.set_page_config(page_title="KihatoGathogo Pro V21.0", layout="wide") 
 st.markdown("""
     <style>
@@ -48,7 +48,6 @@ if "trades" not in st.session_state: st.session_state.trades = []
 if "running" not in st.session_state: st.session_state.running = False
 if "wins" not in st.session_state: st.session_state.wins = 0
 if "losses" not in st.session_state: st.session_state.losses = 0
-# Initialized to 0.0, will be updated immediately upon login/run
 if "live_bal" not in st.session_state: st.session_state.live_bal = 0.0 
 if "user_session" not in st.session_state: st.session_state.user_session = None
 
@@ -83,6 +82,7 @@ with col_main_2:
 
 # --- 5. SIDEBAR & LOGIN ---
 st.sidebar.title("👥 User Center")
+# RESTORED REGISTER ICON/ACTION
 choice = st.sidebar.selectbox("Action", ["Login", "Register"])
 
 if choice == "Login":
@@ -94,6 +94,19 @@ if choice == "Login":
             st.sidebar.success("✅ Access Accepted.")
             time.sleep(1)
             st.rerun()
+        else:
+            st.sidebar.error("❌ Access Declined. Invalid credentials.")
+
+elif choice == "Register":
+    r_email = st.sidebar.text_input("New Email")
+    r_pass = st.sidebar.text_input("New Password", type="password")
+    r_bot = st.sidebar.text_input("Telegram Bot Token")
+    r_cid = st.sidebar.text_input("Telegram Chat ID")
+    r_deriv = st.sidebar.text_input("Deriv API Token")
+    if st.sidebar.button("Create Account"):
+        st.session_state.db[r_email] = {"pass": r_pass, "bot": r_bot, "cid": r_cid, "deriv": r_deriv}
+        save_db(st.session_state.db)
+        st.sidebar.success("✅ Account Created!")
 
 # --- 6. SOVEREIGN ENGINE ---
 u = st.session_state.user_session
@@ -117,13 +130,11 @@ chart_area = st.empty()
 async def worker():
     api = DerivAPI(app_id=1089)
     try:
-        # Fetches the REAL balance immediately upon connection
         auth = await api.authorize(v_deriv) 
         st.session_state.live_bal = float(auth['authorize']['balance']) 
         status_area.success(f"🟢 ENGINE ACTIVE | Account: {auth['authorize']['loginid']}")
         
         while st.session_state.running:
-            # Update metrics from real-time balance
             bal_upd = await api.balance()
             st.session_state.live_bal = float(bal_upd['balance']['balance'])
 
@@ -150,7 +161,6 @@ async def worker():
                 direction = "CALL" if is_bull else "PUT"
                 status_area.warning(f"💎 ELITE SIGNAL DETECTED ({score}/10)")
                 if live_trade:
-                    # Executes the trade
                     await api.buy({"buy": 1, "price": base_stake, "parameters": {"amount": base_stake, "basis": "stake", "contract_type": direction, "currency": "USD", "duration": 5, "duration_unit": "t", "symbol": "1HZ100V"}})
                     
                     await asyncio.sleep(8)
@@ -163,7 +173,7 @@ async def worker():
                     
                     st.session_state.trades.append({"Time": time.strftime("%H:%M:%S"), "Type": direction, "Profit": p_val, "Score": f"{score}/10"})
                     send_tele(f"📊 {direction} | Profit: {p_val}", v_bot, v_cid)
-                    await asyncio.sleep(90) # Forced Cooldown
+                    await asyncio.sleep(90)
             await asyncio.sleep(1)
     except Exception as e: status_area.error(f"Engine Alert: {e}")
 
