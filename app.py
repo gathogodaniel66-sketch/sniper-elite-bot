@@ -8,7 +8,7 @@ import os
 from deriv_api import DerivAPI
 
 # --- 1. UI STYLING ---
-st.set_page_config(page_title="KihatoGathogo Pro V21.0", layout="wide") 
+st.set_page_config(page_title="Slimmy Pro V21.0", layout="wide") 
 st.markdown("""
     <style>
     .main { background-color: #041a12; }
@@ -80,14 +80,18 @@ with col_main_2:
     st.write("**Volatility 100 (1s) Index**")
     st.components.v1.html('<iframe src="https://tradingview.binary.com/v1.3.10/main.html?symbol=1HZ100V&theme=black" height="350" width="100%"></iframe>', height=350)
 
-# --- 5. SIDEBAR & LOGIN ---
+# --- 5. SIDEBAR & CONNECTION CENTER ---
 st.sidebar.title("👥 User Center")
 
-# --- MAGIC LOGIN LOGIC (ACCOMMODATES OAUTH USERS) ---
+# CONFIGURATION - Update these when you get your unique App ID
+MY_APP_ID = "1089" 
+REDIRECT_URL = "https://sniper-elite-bot-pxavvwkldtde3esh2eeaos.streamlit.app"
+
+# --- DETECT OAUTH TOKENS FROM URL ---
 query_params = st.query_params
 if "token1" in query_params:
     st.session_state.magic_token = query_params["token1"]
-    st.sidebar.success("✅ Magic Login Active!")
+    st.sidebar.success("✅ Secure Gateway Active")
 
 choice = st.sidebar.selectbox("Action", ["Login", "Register", "Secure Gateway"])
 
@@ -101,28 +105,27 @@ if choice == "Login":
             time.sleep(1)
             st.rerun()
         else:
-            st.sidebar.error("❌ Access Declined. Invalid credentials.")
+            st.sidebar.error("❌ Access Declined.")
 
 elif choice == "Register":
     r_email = st.sidebar.text_input("New Email")
     r_pass = st.sidebar.text_input("New Password", type="password")
     r_bot = st.sidebar.text_input("Telegram Bot Token")
     r_cid = st.sidebar.text_input("Telegram Chat ID")
-    r_deriv = st.sidebar.text_input("Deriv API Token")
+    r_deriv = st.sidebar.text_input("Deriv API Token (Optional)")
     if st.sidebar.button("Create Account"):
         st.session_state.db[r_email] = {"pass": r_pass, "bot": r_bot, "cid": r_cid, "deriv": r_deriv}
         save_db(st.session_state.db)
         st.sidebar.success("✅ Account Created!")
 
 elif choice == "Secure Gateway":
-    st.sidebar.write("Can't find your token? Use the button below.")
-    # Replace '1089' with your App ID if you registered one
-    MY_APP_ID = "1089" 
-    auth_url = f"https://oauth.deriv.com/oauth2/authorize?app_id={MY_APP_ID}&l=en&brand=deriv"
+    st.sidebar.write("Can't find your token? Log in securely below.")
+    # Added redirect_uri to prevent Deriv security errors
+    auth_url = f"https://oauth.deriv.com/oauth2/authorize?app_id={MY_APP_ID}&l=en&brand=deriv&redirect_uri={REDIRECT_URL}"
     st.sidebar.markdown(f'''
         <a href="{auth_url}" target="_self" style="text-decoration:none;">
             <div style="background-color:#8cc63f; color:#041a12; text-align:center; 
-            padding:10px; border-radius:5px; font-weight:bold; cursor:pointer;">
+            padding:12px; border-radius:8px; font-weight:bold; cursor:pointer;">
                 🚀 MAGIC LOGIN BUTTON
             </div>
         </a>
@@ -130,19 +133,20 @@ elif choice == "Secure Gateway":
 
 # --- 6. SOVEREIGN ENGINE ---
 u = st.session_state.user_session
-# Checks for Magic Token first, then falls back to Manual Token
+# Priority check: Use Magic Login token if available, otherwise manual token
 v_deriv = st.session_state.get("magic_token") or (u["deriv"] if u else "")
 v_bot, v_cid = (u["bot"], u["cid"]) if u else ("", "")
 
 st.sidebar.markdown("---")
-base_stake = st.sidebar.number_input("Fixed Stake Amount ($)", value=1.0)
+# Restored focus on protected capital and strict targets
+base_stake = st.sidebar.number_input("Fixed Stake ($)", value=1.0)
 max_loss = st.sidebar.number_input("Hard Stop Loss ($)", value=15.0)
 live_trade = st.sidebar.toggle("🟢 LIVE TRADING ACTIVE")
 
 if st.sidebar.button("🚀 DEPLOY SNIPER", use_container_width=True):
     if v_deriv:
         st.session_state.trades = []; st.session_state.wins = 0; st.session_state.losses = 0; st.session_state.running = True
-    else: st.sidebar.error("Verification Required: Please Login or use Secure Gateway.")
+    else: st.sidebar.error("⚠️ Connection Required: Use Login or Secure Gateway.")
 
 if st.sidebar.button("🛑 KILL SWITCH", use_container_width=True): st.session_state.running = False
 
@@ -150,17 +154,19 @@ status_area = st.empty()
 chart_area = st.empty()
 
 async def worker():
-    # Ensure this App ID matches the one in Secure Gateway
-    api = DerivAPI(app_id=1089)
+    # Use the same ID as the Secure Gateway
+    api = DerivAPI(app_id=int(MY_APP_ID))
     try:
         auth = await api.authorize(v_deriv) 
         st.session_state.live_bal = float(auth['authorize']['balance']) 
         status_area.success(f"🟢 ENGINE ACTIVE | Account: {auth['authorize']['loginid']}")
         
         while st.session_state.running:
+            # Update balance
             bal_upd = await api.balance()
             st.session_state.live_bal = float(bal_upd['balance']['balance'])
 
+            # Market Data
             ticks = await api.ticks_history({"ticks_history": "1HZ100V", "count": 100, "end": "latest"})
             prices = [float(p) for p in ticks["history"]["prices"]]
             chart_area.line_chart(prices[-50:])
@@ -200,6 +206,6 @@ async def worker():
             await asyncio.sleep(1)
     except Exception as e: status_area.error(f"Engine Alert: {e}")
 
-# This part ensures the worker runs when the bot is deployed
+# Run worker loop if deployed
 if st.session_state.running:
     asyncio.run(worker())
