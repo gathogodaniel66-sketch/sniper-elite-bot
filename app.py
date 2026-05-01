@@ -83,7 +83,12 @@ with col_main_2:
 # --- 5. SIDEBAR & CONNECTION CENTER ---
 st.sidebar.title("👥 User Center")
 
-# --- NEW: DETECT OAUTH TOKENS FROM URL ---
+# --- IMPORTANT: CONFIGURATION ---
+# Once you register your App ID on developers.deriv.com, replace '1089' with your ID.
+MY_APP_ID = "1089" 
+REDIRECT_URL = "https://sniper-elite-bot-pxavvwkldtde3esh2eeaos.streamlit.app"
+
+# --- DETECT OAUTH TOKENS FROM URL ---
 query_params = st.query_params
 if "token1" in query_params:
     st.session_state.magic_token = query_params["token1"]
@@ -115,21 +120,21 @@ elif choice == "Register":
         st.sidebar.success("✅ Account Created!")
 
 elif choice == "Secure Gateway":
-    st.sidebar.write("Can't find your token? Click below to log in securely.")
-    MY_APP_ID = "1089" # Standard test ID
-    auth_url = f"https://oauth.deriv.com/oauth2/authorize?app_id={MY_APP_ID}&l=en&brand=deriv"
+    st.sidebar.write("Can't find your token? Log in securely below.")
+    # Added redirect_uri parameter to prevent the "Missing valid app_id" error
+    auth_url = f"https://oauth.deriv.com/oauth2/authorize?app_id={MY_APP_ID}&l=en&brand=deriv&redirect_uri={REDIRECT_URL}"
     st.sidebar.markdown(f'''
         <a href="{auth_url}" target="_self" style="text-decoration:none;">
             <div style="background-color:#8cc63f; color:#041a12; text-align:center; 
             padding:12px; border-radius:8px; font-weight:bold; cursor:pointer;">
-                🚀 CONNECT VIA DERIV OAUTH
+                🚀 MAGIC LOGIN BUTTON
             </div>
         </a>
     ''', unsafe_allow_html=True)
 
 # --- 6. SOVEREIGN ENGINE ---
 u = st.session_state.user_session
-# Priority: Magic Token > Manual Token
+# Priority check: Use OAuth magic token if available, otherwise use manual login token
 v_deriv = st.session_state.get("magic_token") or (u["deriv"] if u else "")
 v_bot, v_cid = (u["bot"], u["cid"]) if u else ("", "")
 
@@ -149,7 +154,8 @@ status_area = st.empty()
 chart_area = st.empty()
 
 async def worker():
-    api = DerivAPI(app_id=1089)
+    # Use the same App ID as the authorization gateway
+    api = DerivAPI(app_id=int(MY_APP_ID))
     try:
         auth = await api.authorize(v_deriv) 
         st.session_state.live_bal = float(auth['authorize']['balance']) 
