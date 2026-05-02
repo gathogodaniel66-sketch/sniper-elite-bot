@@ -48,7 +48,7 @@ if "trades" not in st.session_state: st.session_state.trades = []
 if "running" not in st.session_state: st.session_state.running = False
 if "wins" not in st.session_state: st.session_state.wins = 0
 if "losses" not in st.session_state: st.session_state.losses = 0
-if "live_bal" not in st.session_state: st.session_state.live_bal = 0.0 
+if "live_bal" not in st.session_state: st.session_state.live_bal = 0.0
 if "user_session" not in st.session_state: st.session_state.user_session = None
 
 def send_tele(msg, token, cid):
@@ -80,9 +80,29 @@ with col_main_2:
     st.write("**Volatility 100 (1s) Index**")
     st.components.v1.html('<iframe src="https://tradingview.binary.com/v1.3.10/main.html?symbol=1HZ100V&theme=black" height="350" width="100%"></iframe>', height=350)
 
-# --- 5. SIDEBAR & LOGIN ---
+col_sub_1, col_sub_2, col_sub_3 = st.columns(3)
+with col_sub_1:
+    st.write("**EUR/USD**")
+    st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=FX%3AEURUSD&interval=1&theme=dark" height="220" width="100%"></iframe>', height=220)
+with col_sub_2:
+    st.write("**USD/JPY**")
+    st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=FX%3AUSDJPY&interval=1&theme=dark" height="220" width="100%"></iframe>', height=220)
+with col_sub_3:
+    st.write("**Bitcoin (BTC/USD)**")
+    st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=BINANCE%3ABTCUSDT&interval=1&theme=dark" height="220" width="100%"></iframe>', height=220)
+
+st.markdown("---")
+
+# --- 5. TRADE HISTORY & EXPORT ---
+if st.session_state.trades:
+    st.markdown("### 📥 Session Trade History")
+    hist_df = pd.DataFrame(st.session_state.trades)
+    st.table(hist_df.tail(10))
+    csv_data = hist_df.to_csv(index=False).encode('utf-8')
+    st.download_button(label="DOWNLOAD TRADE LOG (CSV)", data=csv_data, file_name="Slimmy_Pro_V21_Log.csv", mime='text/csv')
+
+# --- 6. SIDEBAR & LOGIN ---
 st.sidebar.title("👥 User Center")
-# RESTORED REGISTER ICON/ACTION
 choice = st.sidebar.selectbox("Action", ["Login", "Register"])
 
 if choice == "Login":
@@ -91,93 +111,8 @@ if choice == "Login":
     if st.sidebar.button("Unlock Dashboard"):
         if l_email in st.session_state.db and st.session_state.db[l_email]["pass"] == l_pass:
             st.session_state.user_session = st.session_state.db[l_email]
-            st.sidebar.success("✅ Access Accepted.")
+            st.sidebar.success("✅ Access Accepted. Welcome back.")
             time.sleep(1)
             st.rerun()
         else:
-            st.sidebar.error("❌ Access Declined. Invalid credentials.")
-
-elif choice == "Register":
-    r_email = st.sidebar.text_input("New Email")
-    r_pass = st.sidebar.text_input("New Password", type="password")
-    r_bot = st.sidebar.text_input("Telegram Bot Token")
-    r_cid = st.sidebar.text_input("Telegram Chat ID")
-    r_deriv = st.sidebar.text_input("Deriv API Token")
-    if st.sidebar.button("Create Account"):
-        st.session_state.db[r_email] = {"pass": r_pass, "bot": r_bot, "cid": r_cid, "deriv": r_deriv}
-        save_db(st.session_state.db)
-        st.sidebar.success("✅ Account Created!")
-
-# --- 6. SOVEREIGN ENGINE ---
-u = st.session_state.user_session
-v_bot, v_cid, v_deriv = (u["bot"], u["cid"], u["deriv"]) if u else ("", "", "")
-
-st.sidebar.markdown("---")
-base_stake = st.sidebar.number_input("Fixed Stake Amount ($)", value=1.0)
-max_loss = st.sidebar.number_input("Hard Stop Loss ($)", value=15.0)
-live_trade = st.sidebar.toggle("🟢 LIVE TRADING ACTIVE")
-
-if st.sidebar.button("🚀 DEPLOY SNIPER", use_container_width=True):
-    if v_deriv:
-        st.session_state.trades = []; st.session_state.wins = 0; st.session_state.losses = 0; st.session_state.running = True
-    else: st.sidebar.error("Verification Required: Please Login First.")
-
-if st.sidebar.button("🛑 KILL SWITCH", use_container_width=True): st.session_state.running = False
-
-status_area = st.empty()
-chart_area = st.empty()
-
-async def worker():
-    api = DerivAPI(app_id=1089)
-    try:
-        auth = await api.authorize(v_deriv) 
-        st.session_state.live_bal = float(auth['authorize']['balance']) 
-        status_area.success(f"🟢 ENGINE ACTIVE | Account: {auth['authorize']['loginid']}")
-        
-        while st.session_state.running:
-            bal_upd = await api.balance()
-            st.session_state.live_bal = float(bal_upd['balance']['balance'])
-
-            ticks = await api.ticks_history({"ticks_history": "1HZ100V", "count": 100, "end": "latest"})
-            prices = [float(p) for p in ticks["history"]["prices"]]
-            chart_area.line_chart(prices[-50:])
-
-            # --- PRECISION SCORING (SCORE 9) ---
-            ma200, ma50 = sum(prices[-100:])/100, sum(prices[-50:])/50
-            is_bull = (prices[-1] > ma50 > ma200)
-            is_bear = (prices[-1] < ma50 < ma200)
-            
-            deltas = pd.Series(prices).diff()
-            gain, loss = deltas.where(deltas > 0, 0).rolling(14).mean(), (-deltas.where(deltas < 0, 0)).rolling(14).mean()
-            rsi = 100 - (100 / (1 + (gain/loss).iloc[-1])) if loss.iloc[-1] != 0 else 50
-            
-            score = 0
-            if is_bull or is_bear: score += 4
-            if (is_bull and 55 <= rsi <= 65) or (is_bear and 35 <= rsi <= 45): score += 2
-            if (is_bull and prices[-1] > prices[-2] > prices[-3]) or (is_bear and prices[-1] < prices[-2] < prices[-3]): score += 2
-            if 0.12 < pd.Series(prices[-20:]).std() < 0.50: score += 2
-
-            if score >= 9:
-                direction = "CALL" if is_bull else "PUT"
-                status_area.warning(f"💎 ELITE SIGNAL DETECTED ({score}/10)")
-                if live_trade:
-                    await api.buy({"buy": 1, "price": base_stake, "parameters": {"amount": base_stake, "basis": "stake", "contract_type": direction, "currency": "USD", "duration": 5, "duration_unit": "t", "symbol": "1HZ100V"}})
-                    
-                    await asyncio.sleep(8)
-                    history = await api.profit_table({"profit_table": 1, "limit": 1})
-                    res = history['profit_table']['transactions'][0]
-                    p_val = round(float(res['sell_price']) - float(res['buy_price']), 2)
-                    
-                    if p_val > 0: st.session_state.wins += 1
-                    else: st.session_state.losses += 1
-                    
-                    st.session_state.trades.append({"Time": time.strftime("%H:%M:%S"), "Type": direction, "Profit": p_val, "Score": f"{score}/10"})
-                    send_tele(f"📊 {direction} | Profit: {p_val}", v_bot, v_cid)
-                    await asyncio.sleep(90)
-            await asyncio.sleep(1)
-    except Exception as e: status_area.error(f"Engine Alert: {e}")
-
-if st.session_state.running:
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(worker())
+            st.sidebar.error("❌ ...
