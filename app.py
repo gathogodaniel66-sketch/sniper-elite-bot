@@ -7,7 +7,7 @@ import json
 import os
 from deriv_api import DerivAPI
 
-# --- 1. UI STYLING ---
+# --- 1. UI STYLING (MOTHER CODE PRESERVED) ---
 st.set_page_config(page_title="Slimmy Pro V21.0", layout="wide") 
 st.markdown("""
     <style>
@@ -23,16 +23,10 @@ st.markdown("""
         border: 1px solid #8cc63f;
         border-radius: 15px; padding: 15px;
     }
-    .stDownloadButton button {
-        width: 100%;
-        background-color: #8cc63f !important;
-        color: #041a12 !important;
-        font-weight: bold !important;
-    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. PERMANENT DATA & STATE ---
+# --- 2. DATA VAULT LOGIC ---
 DB_FILE = "slimmy_vault_v18.json"
 def load_db():
     if os.path.exists(DB_FILE):
@@ -51,11 +45,6 @@ if "live_bal" not in st.session_state: st.session_state.live_bal = 0.0
 if "user_session" not in st.session_state: st.session_state.user_session = None
 if "session_profit" not in st.session_state: st.session_state.session_profit = 0.0
 
-def send_tele(msg, token, cid):
-    if token and cid:
-        try: requests.get(f"https://api.telegram.org/bot{token}/sendMessage?chat_id={cid}&text={msg}")
-        except: pass
-
 # --- 3. HEADER & METRICS ---
 st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO V21.0</h2><p style='color:#8cc63f; margin:0;'>GLOBAL PRECISION ARCHITECTURE</p></div>", unsafe_allow_html=True)
 
@@ -66,67 +55,75 @@ with m3: st.metric("📉 STATUS", "RUNNING" if st.session_state.running else "ID
 
 st.markdown("---")
 
-# --- 4. 📈 LIVE MARKET DASHBOARD ---
-st.markdown("### 📈 Live Market Dashboard")
+# --- 4. MARKET VISUALS ---
 col_main_1, col_main_2 = st.columns(2)
 with col_main_1:
-    st.write("**Gold (XAU/USD)**")
+    st.write("**Gold Market**")
     st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=OANDA%3AXAUUSD&interval=1&theme=dark" height="350" width="100%"></iframe>', height=350)
 with col_main_2:
     st.write("**Volatility / OTC Market**")
     st.components.v1.html('<iframe src="https://tradingview.binary.com/v1.3.10/main.html?symbol=1HZ100V&theme=black" height="350" width="100%"></iframe>', height=350)
 
-# --- 5. SIDEBAR: SMART USER CENTER ---
+# --- 5. SIDEBAR: DIFFERENTIATED USER CENTER ---
 st.sidebar.title("👥 User Center")
+
+# Step 1: User chooses the broker FIRST
 broker_engine = st.sidebar.radio("Select Trading Engine", ["Deriv API", "Pocket Option OTC"])
 
-# DETECT OAUTH TOKENS
-query_params = st.query_params
-if "token1" in query_params:
-    st.session_state.magic_token = query_params["token1"]
-    st.sidebar.success("✅ Secure Gateway Active")
-
+# Step 2: Action dropdown
 action = st.sidebar.selectbox("Action", ["Login", "Register", "Secure Gateway", "Password Recovery"])
 
+# --- DIFFERENTIATED REGISTRATION ---
 if action == "Register":
     st.sidebar.subheader(f"📝 {broker_engine} Registration")
-    r_email = st.sidebar.text_input("New Email")
-    r_pass = st.sidebar.text_input("New Password", type="password")
-    r_bot = st.sidebar.text_input("Telegram Bot Token")
-    r_cid = st.sidebar.text_input("Telegram Chat ID")
+    reg_email = st.sidebar.text_input("New Email", key="reg_email")
+    reg_pass = st.sidebar.text_input("New Password", type="password", key="reg_pass")
     
+    # Logic switch based on broker selection
     if broker_engine == "Deriv API":
-        r_token = st.sidebar.text_input("Deriv API Token")
-        if st.sidebar.button("Create Account"):
-            st.session_state.db[r_email] = {"pass": r_pass, "bot": r_bot, "cid": r_cid, "deriv": r_token, "type": "deriv"}
+        reg_deriv_token = st.sidebar.text_input("Deriv API Token", key="reg_deriv")
+        if st.sidebar.button("Create Deriv Account"):
+            st.session_state.db[reg_email] = {"pass": reg_pass, "deriv": reg_deriv_token, "type": "deriv"}
             save_db(st.session_state.db)
-            st.sidebar.success("✅ Deriv Account Created!")
-    else:
-        r_ssid = st.sidebar.text_input("Pocket Option SSID")
-        if st.sidebar.button("Create Account"):
-            st.session_state.db[r_email] = {"pass": r_pass, "bot": r_bot, "cid": r_cid, "po_ssid": r_ssid, "type": "pocket"}
+            st.sidebar.success("✅ Deriv Profile Saved!")
+    
+    elif broker_engine == "Pocket Option OTC":
+        reg_po_ssid = st.sidebar.text_input("Pocket Option SSID", key="reg_pocket")
+        if st.sidebar.button("Create Pocket Account"):
+            st.session_state.db[reg_email] = {"pass": reg_pass, "po_ssid": reg_po_ssid, "type": "pocket"}
             save_db(st.session_state.db)
-            st.sidebar.success("✅ Pocket Account Created!")
+            st.sidebar.success("✅ Pocket Profile Saved!")
 
+# --- LOGIN LOGIC ---
 elif action == "Login":
-    l_email = st.sidebar.text_input("Email")
-    l_pass = st.sidebar.text_input("Password", type="password")
+    st.sidebar.subheader(f"🔑 {broker_engine} Login")
+    login_email = st.sidebar.text_input("Email", key="log_email")
+    login_pass = st.sidebar.text_input("Password", type="password", key="log_pass")
+    
     if st.sidebar.button("Unlock Dashboard"):
-        if l_email in st.session_state.db and st.session_state.db[l_email]["pass"] == l_pass:
-            st.session_state.user_session = st.session_state.db[l_email]
-            # FIXED KEYERROR: Uses .get() to prevent crash shown in image_c096e0.jpg
-            u_type = st.session_state.user_session.get("type", "Standard")
-            st.sidebar.success(f"✅ Logged in as {u_type.upper()}")
-            time.sleep(1)
-            st.rerun()
-        else: st.sidebar.error("❌ Access Denied")
+        if login_email in st.session_state.db and st.session_state.db[login_email]["pass"] == login_pass:
+            user_data = st.session_state.db[login_email]
+            
+            # Safety check: Ensure they are logging into the right engine
+            if user_data.get("type") == "deriv" and broker_engine == "Pocket Option OTC":
+                st.sidebar.error("❌ This is a Deriv account. Switch engine to login.")
+            elif user_data.get("type") == "pocket" and broker_engine == "Deriv API":
+                st.sidebar.error("❌ This is a Pocket account. Switch engine to login.")
+            else:
+                st.session_state.user_session = user_data
+                st.sidebar.success(f"✅ Access Accepted ({broker_engine})")
+                time.sleep(1)
+                st.rerun()
+        else:
+            st.sidebar.error("❌ Access Declined.")
 
+# --- PASSWORD RECOVERY ---
 elif action == "Password Recovery":
     st.sidebar.subheader("🔑 Recovery")
     rec_email = st.sidebar.text_input("Registered Email")
-    if st.sidebar.button("Send Hint"):
+    if st.sidebar.button("Show Hint"):
         if rec_email in st.session_state.db:
-            st.sidebar.info(f"Hint: Password starts with {st.session_state.db[rec_email]['pass'][:2]}***")
+            st.sidebar.info(f"Hint: Your password starts with {st.session_state.db[rec_email]['pass'][:2]}***")
         else: st.sidebar.error("Email not found.")
 
 # --- 6. 🎯 SNIPER COMMAND CENTER ---
