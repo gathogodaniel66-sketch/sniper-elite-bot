@@ -5,11 +5,10 @@ import json
 import os
 import random
 
-# --- PAGE CONFIG ---
 st.set_page_config(page_title="Slimmy Pro V21.0", layout="wide")
 
 # ==============================
-# 🔐 DATABASE
+# DATABASE
 # ==============================
 DB_FILE = "users_db.json"
 
@@ -28,29 +27,23 @@ if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
 # ==============================
-# 🔥 DERIV VALIDATION
+# DERIV VALIDATION
 # ==============================
 async def validate_deriv(token):
     try:
         api = DerivAPI(app_id=1089)
         auth = await api.authorize(token)
-        balance = await api.balance()
         await api.clear()
-
-        return {
-            "valid": True,
-            "loginid": auth["authorize"]["loginid"],
-            "currency": balance["balance"]["currency"]
-        }
-    except Exception as e:
-        return {"valid": False, "error": str(e)}
+        return {"valid": True}
+    except:
+        return {"valid": False}
 
 # ==============================
-# 🔐 LOGIN / REGISTER
+# LOGIN
 # ==============================
 if not st.session_state.logged_in:
 
-    st.markdown("## KIHATOGATHOGO PRO")
+    st.title("KIHATOGATHOGO PRO")
 
     mode = st.radio("", ["AUTH_LOGIN", "INIT_SYSTEM"], horizontal=True)
 
@@ -58,58 +51,44 @@ if not st.session_state.logged_in:
         email = st.text_input("Email")
         password = st.text_input("Password", type="password")
 
-        if st.button("🔓 LOGIN"):
+        if st.button("LOGIN"):
             users = st.session_state.users
             if email in users and users[email]["password"] == password:
                 st.session_state.logged_in = True
-                st.session_state.user_email = email
                 st.session_state.user_token = users[email]["token"]
                 st.rerun()
             else:
-                st.error("Invalid credentials")
+                st.error("Invalid login")
 
     if mode == "INIT_SYSTEM":
         email = st.text_input("Email")
         password = st.text_input("Password", type="password")
-        token = st.text_input("Deriv API Token")
+        token = st.text_input("Deriv Token")
 
-        if st.button("🚀 REGISTER"):
+        if st.button("REGISTER"):
             result = asyncio.run(validate_deriv(token))
-
-            if not result["valid"]:
-                st.error(result["error"])
-            else:
+            if result["valid"]:
                 users = st.session_state.users
-                users[email] = {
-                    "password": password,
-                    "token": token
-                }
+                users[email] = {"password": password, "token": token}
                 save_users(users)
-                st.success("Account Created")
+                st.success("Account created")
+            else:
+                st.error("Invalid token")
 
 # ==============================
-# 🔥 DASHBOARD + TRADING ENGINE
+# DASHBOARD + BOT
 # ==============================
 else:
 
     DERIV_TOKEN = st.session_state.user_token
 
-    # =========================
-    # 🔄 GET BALANCE
-    # =========================
-    async def get_deriv_balance():
-        try:
-            api = DerivAPI(app_id=1089)
-            await api.authorize(DERIV_TOKEN)
-            res = await api.balance()
-            await api.clear()
-            return float(res["balance"]["balance"])
-        except:
-            return 0.0
+    async def get_balance():
+        api = DerivAPI(app_id=1089)
+        await api.authorize(DERIV_TOKEN)
+        res = await api.balance()
+        await api.clear()
+        return float(res["balance"]["balance"])
 
-    # =========================
-    # 🔥 EXECUTE TRADE
-    # =========================
     async def execute_trade(symbol, stake, direction):
         try:
             api = DerivAPI(app_id=1089)
@@ -131,16 +110,12 @@ else:
             await api.buy({"buy": pid, "price": stake})
             await api.clear()
             return True
-
         except Exception as e:
-            st.error(f"Trade error: {e}")
+            st.error(e)
             return False
 
-    # =========================
-    # 📊 INIT STATES
-    # =========================
-    if "live_bal" not in st.session_state:
-        st.session_state.live_bal = asyncio.run(get_deriv_balance())
+    if "balance" not in st.session_state:
+        st.session_state.balance = asyncio.run(get_balance())
 
     if "running" not in st.session_state:
         st.session_state.running = False
@@ -151,65 +126,82 @@ else:
     if "losses" not in st.session_state:
         st.session_state.losses = 0
 
-    if "trade_count" not in st.session_state:
-        st.session_state.trade_count = 0
+    if "trades" not in st.session_state:
+        st.session_state.trades = 0
 
     # =========================
-    # 🔄 REFRESH
+    # TOP METRICS
     # =========================
-    if st.button("🔄 Refresh Balance"):
-        st.session_state.live_bal = asyncio.run(get_deriv_balance())
+    c1, c2, c3, c4 = st.columns(4)
+
+    c1.metric("Balance", f"${st.session_state.balance:.2f}")
+    c2.metric("Trades", st.session_state.trades)
+    c3.metric("Wins", st.session_state.wins)
+    c4.metric("Losses", st.session_state.losses)
 
     # =========================
-    # 📊 METRICS
+    # EXTRA METRICS
     # =========================
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric("Balance", f"${st.session_state.live_bal:,.2f}")
-    col2.metric("Trades", st.session_state.trade_count)
-    col3.metric("Wins", st.session_state.wins)
+    c5, c6, c7, c8, c9, c10 = st.columns(6)
+    c5.metric("Signal", "0/10")
+    c6.metric("Drawdown", "0")
+    c7.metric("Speed", "0ms")
+    c8.metric("API", "Connected")
+    c9.metric("Avg Trade", "0")
+    c10.metric("Risk", "0%")
 
     st.markdown("---")
 
-    # =========================
-    # ⚙️ CONTROL PANEL
-    # =========================
-    stake = st.number_input("Stake ($)", value=1.0)
-
-    if not st.session_state.running:
-        if st.button("🚀 Start Engine"):
-            st.session_state.running = True
-    else:
-        if st.button("🛑 Stop Engine"):
-            st.session_state.running = False
+    left, right = st.columns([3,1])
 
     # =========================
-    # 🤖 AUTO TRADING ENGINE
+    # SCANNER
+    # =========================
+    with left:
+        st.subheader("Market Scanner")
+
+        assets = ["Vol 100", "Vol 75", "Vol 25", "Gold", "BTC", "GBPJPY"]
+
+        for a in assets:
+            st.write(f"{a} → waiting...")
+
+    # =========================
+    # CONTROL PANEL
+    # =========================
+    with right:
+        stake = st.number_input("Stake", value=1.0)
+
+        if not st.session_state.running:
+            if st.button("Start Engine"):
+                st.session_state.running = True
+        else:
+            if st.button("Stop Engine"):
+                st.session_state.running = False
+
+        if st.session_state.running:
+            st.success("Running")
+        else:
+            st.warning("Stopped")
+
+    # =========================
+    # AUTO TRADING
     # =========================
     if st.session_state.running:
 
-        st.success("Engine Running...")
-
-        # simple signal (replace later)
         signal = random.choice(["CALL", "PUT"])
 
-        result = asyncio.run(
-            execute_trade("R_100", stake, signal)
-        )
+        result = asyncio.run(execute_trade("R_100", stake, signal))
 
         if result:
-            st.session_state.trade_count += 1
+            st.session_state.trades += 1
 
             if signal == "CALL":
                 st.session_state.wins += 1
             else:
                 st.session_state.losses += 1
 
-        st.write(f"Last Trade: {signal}")
+        st.write(f"Trade: {signal}")
 
-    # =========================
-    # 🔒 LOGOUT
-    # =========================
     if st.button("Logout"):
         st.session_state.logged_in = False
         st.rerun()
