@@ -19,20 +19,51 @@ if "trade_count" not in st.session_state:
 if "running" not in st.session_state:
     st.session_state.running = False
 
+# --- 🔥 COLOR LOGIC (ADDED) ---
+pl_value = st.session_state.session_profit - st.session_state.session_loss
+
+if pl_value > 0:
+    pl_color = "#00ff88"
+elif pl_value < 0:
+    pl_color = "#ff4b4b"
+else:
+    pl_color = "#b6ff6a"
+
+win_rate = (st.session_state.wins / max(1, st.session_state.trade_count)) * 100
+
+if win_rate > 50:
+    win_color = "#00ff88"
+elif win_rate < 50:
+    win_color = "#ff4b4b"
+else:
+    win_color = "#ffaa00"
+
+balance_color = "#00ff88" if st.session_state.live_bal >= 0 else "#ff4b4b"
+
 # --- BASE STYLING ---
 st.markdown("""
 <style>
 .stApp { background-color: #020d08; color: #8cc63f; }
 
 div[data-testid="stMetric"] {
-    background: #05140d;
-    border: 1px solid #1a3a2a;
-    padding: 12px;
-    border-radius: 8px;
+    background: linear-gradient(145deg, #062e1c, #041f14);
+    border: 1px solid #1f7a4c;
+    box-shadow: 0 0 12px rgba(140, 198, 63, 0.25);
+    padding: 14px;
+    border-radius: 10px;
     text-align: center;
 }
 
-h3 { color: #8cc63f; }
+div[data-testid="stMetric"]:hover {
+    transform: scale(1.03);
+    box-shadow: 0 0 20px rgba(140, 198, 63, 0.5);
+    transition: 0.2s;
+}
+
+div[data-testid="stMetric"] > div:nth-child(2) {
+    font-size: 26px;
+    font-weight: bold;
+}
 
 .stButton>button {
     background-color: #8cc63f !important;
@@ -43,51 +74,28 @@ h3 { color: #8cc63f; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 🔥 EXTRA VISIBILITY STYLING (YOUR FIX) ---
-st.markdown("""
-<style>
-
-/* STRONGER METRIC CARDS */
-div[data-testid="stMetric"] {
-    background: linear-gradient(145deg, #062e1c, #041f14) !important;
-    border: 1px solid #1f7a4c !important;
-    box-shadow: 0 0 12px rgba(140, 198, 63, 0.25) !important;
-    padding: 14px !important;
-    border-radius: 10px !important;
-}
-
-/* BIG VALUE TEXT */
-div[data-testid="stMetric"] > div:nth-child(2) {
-    color: #b6ff6a !important;
-    font-size: 26px !important;
-    font-weight: bold !important;
-}
-
-/* LABEL TEXT */
-div[data-testid="stMetric"] label {
-    color: #8cc63f !important;
-    font-weight: 600 !important;
-}
-
-/* HOVER EFFECT */
-div[data-testid="stMetric"]:hover {
-    transform: scale(1.03);
-    box-shadow: 0 0 20px rgba(140, 198, 63, 0.5) !important;
-    transition: 0.2s ease-in-out;
-}
-
-</style>
-""", unsafe_allow_html=True)
-
 # --- TOP METRICS ---
 col1, col2, col3, col4 = st.columns(4)
 
-col1.metric("Balance", "$0.00")
-col2.metric("P/L", "$0.00")
-col3.metric("Win Rate", "0%")
-col4.metric("Streak", "0W / 0L")
+col1.metric("Balance", f"${st.session_state.live_bal:,.2f}")
+col2.metric("P/L", f"${pl_value:,.2f}")
+col3.metric("Win Rate", f"{win_rate:.1f}%")
+col4.metric("Streak", f"{st.session_state.wins}W / {st.session_state.losses}L")
 
-# --- EXTRA METRICS (ADDED) ---
+# --- APPLY COLORS (SAFE DOM STYLE INJECTION) ---
+st.markdown(f"""
+<script>
+const metrics = window.parent.document.querySelectorAll('[data-testid="stMetric"]');
+if (metrics.length >= 4) {{
+    metrics[0].querySelector('div:nth-child(2)').style.color = "{balance_color}";
+    metrics[1].querySelector('div:nth-child(2)').style.color = "{pl_color}";
+    metrics[2].querySelector('div:nth-child(2)').style.color = "{win_color}";
+    metrics[3].querySelector('div:nth-child(2)').style.color = "#ffffff";
+}}
+</script>
+""", unsafe_allow_html=True)
+
+# --- EXTRA METRICS ---
 col9, col10, col11, col12, col13, col14 = st.columns(6)
 
 col9.metric("🧠 Signal Strength", "0 / 10", "+0")
@@ -102,7 +110,6 @@ st.markdown("---")
 # --- MAIN GRID ---
 left, center, right = st.columns([2, 3, 1])
 
-# LEFT
 with left:
     st.markdown("### VOLATILITY INDEX")
     st.components.v1.html(
@@ -110,7 +117,6 @@ with left:
         height=400
     )
 
-# CENTER
 with center:
     st.markdown("### XAU/USD (GOLD)")
     st.components.v1.html(
@@ -118,7 +124,6 @@ with center:
         height=400
     )
 
-# RIGHT
 with right:
     st.markdown("### ⚙️ ENGINE CONTROL")
 
@@ -134,7 +139,6 @@ with right:
     if st.button("🛑 STOP BOT"):
         st.session_state.running = False
 
-# --- BOTTOM MARKETS ---
 st.markdown("---")
 
 b1, b2, b3 = st.columns(3)
