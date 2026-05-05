@@ -23,7 +23,7 @@ if "running" not in st.session_state:
 pl_value = st.session_state.session_profit - st.session_state.session_loss
 win_rate = (st.session_state.wins / max(1, st.session_state.trade_count)) * 100
 
-# --- STYLING (UNCHANGED BASE + ENHANCED ONLY) ---
+# --- STYLING ---
 st.markdown("""
 <style>
 .stApp { background-color: #020d08; color: #8cc63f; }
@@ -48,10 +48,6 @@ div[data-testid="stMetric"] > div:nth-child(2) {
     font-weight: bold;
 }
 
-div[data-testid="stMetric"] label {
-    color: #8cc63f !important;
-}
-
 .stButton>button {
     background-color: #8cc63f !important;
     color: black !important;
@@ -59,7 +55,7 @@ div[data-testid="stMetric"] label {
     width: 100%;
 }
 
-/* ===== SCANNER STYLES ===== */
+/* SCANNER */
 .adv-scanner {
     border: 1px solid #1a3a2a;
     border-radius: 10px;
@@ -156,7 +152,7 @@ with b3:
     st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=OANDA:EURUSD&theme=dark" height="250" width="100%"></iframe>', height=250)
 
 # ==============================
-# 🔥 ADVANCED MARKET SCANNER (ADDED)
+# 🔥 ADVANCED MARKET SCANNER
 # ==============================
 
 st.markdown("---")
@@ -179,9 +175,25 @@ st.markdown("""
 
 <div class="scan-row"><span><span class="scan-tag forex">FOREX</span> <span class="scan-title">GBP/JPY</span><br><span class="scan-sub">EMA21 + EMA50</span></span><span>—</span></div>
 
+</div>
+""", unsafe_allow_html=True)
+
+# --- 🔥 CLICKABLE ENGINE BUTTON (ADDED) ---
+colA, colB, colC = st.columns([1,2,1])
+
+with colB:
+    if st.button("🚀 Start Engine (Activate Scanner)"):
+        st.session_state.running = True
+
+# --- 🔥 STATUS DISPLAY (ADDED) ---
+if st.session_state.running:
+    st.success("✅ Engine Active — Live signals running...")
+else:
+    st.info("⚠️ Engine is OFF — Start to receive signals")
+
+# --- FOOTER TEXT (KEPT) ---
+st.markdown("""
 <div style="text-align:center;margin-top:10px;color:#4e805d;">
 Start the engine to see live scores
-</div>
-
 </div>
 """, unsafe_allow_html=True)
