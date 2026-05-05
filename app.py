@@ -43,26 +43,30 @@ h3 { color: #8cc63f; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- TOP METRICS (PRO VERSION) ---
-col1, col2, col3, col4, col5, col6, col7, col8 = st.columns(8)
+# --- TOP METRICS (ORIGINAL) ---
+col1, col2, col3, col4 = st.columns(4)
 
-win_rate = (st.session_state.wins / max(1, st.session_state.trade_count)) * 100
+col1.metric("Balance", "$0.00")
+col2.metric("P/L", "$0.00")
+col3.metric("Win Rate", "0%")
+col4.metric("Streak", "0W / 0L")
 
-col1.metric("💰 Balance", f"${st.session_state.live_bal:,.2f}")
-col2.metric("📈 P/L", f"${st.session_state.session_profit - st.session_state.session_loss:,.2f}")
-col3.metric("🎯 Win Rate", f"{win_rate:.1f}%")
-col4.metric("🔥 Streak", f"{st.session_state.wins}W / {st.session_state.losses}L")
-col5.metric("📊 Trades", int(st.session_state.trade_count))
-col6.metric("⚖️ Risk", f"${st.session_state.session_loss:,.2f}")
-col7.metric("⏱ Session", "Live")
-col8.metric("📡 Status", "Active" if st.session_state.running else "Idle")
+# --- EXTRA METRICS ROW (ADDED — DO NOT REMOVE ORIGINAL) ---
+col9, col10, col11, col12, col13, col14 = st.columns(6)
+
+col9.metric("🧠 Signal Strength", "0 / 10", "+0")
+col10.metric("📉 Drawdown", "$0.00", "0%")
+col11.metric("⚡ Exec Speed", "0 ms")
+col12.metric("📡 API Status", "Connected")
+col13.metric("🧮 Avg Trade", "$0.00")
+col14.metric("🎲 Risk/Trade", "0%")
 
 st.markdown("---")
 
 # --- MAIN GRID ---
 left, center, right = st.columns([2, 3, 1])
 
-# --- LEFT PANEL (Deriv Chart) ---
+# --- LEFT PANEL ---
 with left:
     st.markdown("### VOLATILITY INDEX")
     st.components.v1.html(
@@ -70,7 +74,7 @@ with left:
         height=400
     )
 
-# --- CENTER PANEL (Gold Chart) ---
+# --- CENTER PANEL ---
 with center:
     st.markdown("### XAU/USD (GOLD)")
     st.components.v1.html(
@@ -78,7 +82,7 @@ with center:
         height=400
     )
 
-# --- RIGHT PANEL (ENGINE CONTROL) ---
+# --- RIGHT PANEL ---
 with right:
     st.markdown("### ⚙️ ENGINE CONTROL")
 
