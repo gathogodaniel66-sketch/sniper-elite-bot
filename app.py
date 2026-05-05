@@ -28,7 +28,6 @@ st.markdown("""
 <style>
 .stApp { background-color: #020d08; color: #8cc63f; }
 
-/* METRIC CARD */
 div[data-testid="stMetric"] {
     background: linear-gradient(145deg, #062e1c, #041f14);
     border: 1px solid #1f7a4c;
@@ -38,33 +37,45 @@ div[data-testid="stMetric"] {
     text-align: center;
 }
 
-/* HOVER EFFECT */
-div[data-testid="stMetric"]:hover {
-    transform: scale(1.03);
-    box-shadow: 0 0 20px rgba(140, 198, 63, 0.5);
-    transition: 0.2s;
-}
-
-/* 🔥 FORCE ALL METRIC VALUES TO GREEN */
 div[data-testid="stMetric"] > div:nth-child(2) {
     color: #00ff88 !important;
     font-size: 26px;
     font-weight: bold;
 }
 
-/* LABEL TEXT */
-div[data-testid="stMetric"] label {
-    color: #8cc63f !important;
-    font-weight: 600;
-}
-
-/* BUTTON */
 .stButton>button {
     background-color: #8cc63f !important;
     color: black !important;
     font-weight: bold;
     width: 100%;
 }
+
+.scanner-box {
+    border: 1px solid #1f7a4c;
+    border-radius: 10px;
+    padding: 15px;
+    background: #041f14;
+}
+
+.signal-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #0a3d2a;
+}
+
+.tag {
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: bold;
+}
+
+.synth { background:#0b3d91; color:white; }
+.metal { background:#b59f00; color:black; }
+.crypto { background:#c46c00; color:black; }
+.forex { background:#5c2ca0; color:white; }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -112,8 +123,6 @@ with right:
     stop_loss = st.number_input("Stop Loss ($)", value=50.0)
     max_trades = st.number_input("Max Trades", value=10)
 
-    st.markdown("---")
-
     if st.button("▶️ START BOT"):
         st.session_state.running = True
 
@@ -122,6 +131,7 @@ with right:
 
 st.markdown("---")
 
+# --- BOTTOM MARKETS ---
 b1, b2, b3 = st.columns(3)
 
 with b1:
@@ -144,3 +154,25 @@ with b3:
         '<iframe src="https://s.tradingview.com/widgetembed/?symbol=OANDA:EURUSD&interval=5&theme=dark" height="250" width="100%"></iframe>',
         height=250
     )
+
+# ==============================
+# 🔥 NEW: MARKET SIGNAL SCANNER
+# ==============================
+
+st.markdown("---")
+st.markdown("### 📡 MARKET SIGNAL SCANNER")
+
+st.markdown("""
+<div class="scanner-box">
+
+<div class="signal-row"><span><span class="tag synth">SYNTH</span> Vol 100 (1s)</span><span>—</span></div>
+<div class="signal-row"><span><span class="tag synth">SYNTH</span> Vol 75 (1s)</span><span>—</span></div>
+<div class="signal-row"><span><span class="tag synth">SYNTH</span> Vol 25 (1s)</span><span>—</span></div>
+<div class="signal-row"><span><span class="tag synth">SYNTH</span> Vol 10 (1s)</span><span>—</span></div>
+
+<div class="signal-row"><span><span class="tag metal">METAL</span> Gold XAU/USD</span><span>—</span></div>
+<div class="signal-row"><span><span class="tag crypto">CRYPTO</span> BTC/USD</span><span>—</span></div>
+<div class="signal-row"><span><span class="tag forex">FOREX</span> GBP/JPY</span><span>—</span></div>
+
+</div>
+""", unsafe_allow_html=True)
