@@ -26,15 +26,13 @@ if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
 # ==============================
-# 🔥 DERIV VALIDATION (NEW CORE)
+# 🔥 DERIV VALIDATION
 # ==============================
 async def validate_deriv(token):
     try:
         api = DerivAPI(app_id=1089)
         auth = await api.authorize(token)
-
         balance = await api.balance()
-
         await api.clear()
 
         return {
@@ -84,38 +82,38 @@ if not st.session_state.logged_in:
 
     st.markdown("<div class='card'>", unsafe_allow_html=True)
 
-    email = st.text_input("OPERATOR_ID (EMAIL)")
-    password = st.text_input("SECURITY_KEY", type="password")
-
-    token = ""
-    if mode == "INIT_SYSTEM":
-        token = st.text_input("DERIV_API_TOKEN")
-
-    col1, col2 = st.columns(2)
-    tg_bot = col1.text_input("TG_BOT_TOKEN", placeholder="Optional")
-    tg_chat = col2.text_input("TG_CHAT_ID", placeholder="Optional")
-
-    st.warning("Ensure Deriv token has TRADE permission")
-
     # ================= LOGIN =================
     if mode == "AUTH_LOGIN":
+
+        email = st.text_input("OPERATOR_ID (EMAIL)")
+        password = st.text_input("SECURITY_KEY", type="password")
+
         if st.button("🔓 ESTABLISH UPLINK"):
             users = st.session_state.users
 
             if email in users and users[email]["password"] == password:
-
-                st.session_state.user = users[email]
                 st.session_state.logged_in = True
                 st.session_state.user_email = email
                 st.session_state.user_token = users[email]["token"]
-
-                st.success("Connected to Deriv")
+                st.session_state.user = users[email]
+                st.success("Uplink Established")
                 st.rerun()
             else:
                 st.error("Invalid credentials")
 
     # ================= REGISTER =================
     if mode == "INIT_SYSTEM":
+
+        email = st.text_input("OPERATOR_ID (EMAIL)")
+        password = st.text_input("SECURITY_KEY", type="password")
+        token = st.text_input("DERIV_API_TOKEN")
+
+        col1, col2 = st.columns(2)
+        tg_bot = col1.text_input("TG_BOT_TOKEN", placeholder="Optional")
+        tg_chat = col2.text_input("TG_CHAT_ID", placeholder="Optional")
+
+        st.warning("Ensure Deriv token has TRADE permission")
+
         if st.button("🚀 INITIALIZE CORE"):
 
             with st.spinner("Validating Deriv account..."):
@@ -140,7 +138,7 @@ if not st.session_state.logged_in:
     st.markdown("</div>", unsafe_allow_html=True)
 
 # ==============================
-# 🔥 DASHBOARD (UNCHANGED CORE + UPGRADE)
+# 🔥 DASHBOARD (UNCHANGED)
 # ==============================
 else:
 
@@ -172,7 +170,7 @@ else:
         st.session_state.running = True
 
     if st.session_state.get("running"):
-        st.success("Engine Running (Ready for trades)")
+        st.success("Engine Running")
     else:
         st.warning("Engine Idle")
 
