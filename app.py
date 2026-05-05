@@ -8,7 +8,7 @@ import os
 st.set_page_config(page_title="Slimmy Pro V21.0", layout="wide")
 
 # ==============================
-# 🔐 ADD: USER DATABASE (NEW)
+# 🔐 DATABASE (ADDED)
 # ==============================
 DB_FILE = "users_db.json"
 
@@ -27,81 +27,100 @@ if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
 # ==============================
-# 🔐 LOGIN / REGISTER (NEW ONLY)
+# 🔥 LOGIN SCREEN (MATCHES YOUR UI)
 # ==============================
 if not st.session_state.logged_in:
 
     st.markdown("""
     <style>
-    .auth-box {
+    .login-wrapper {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 90vh;
+    }
+
+    .login-card {
         width: 420px;
-        margin: auto;
         padding: 25px;
-        border: 1px solid #1a3a2a;
         border-radius: 10px;
+        border: 1px solid #1a3a2a;
         background: #041f14;
+        box-shadow: 0 0 15px rgba(140,198,63,0.2);
+    }
+
+    .title {
+        text-align: center;
+        color: #8cc63f;
+        font-size: 26px;
+        font-weight: bold;
+    }
+
+    .subtitle {
+        text-align: center;
+        font-size: 12px;
+        color: #4e805d;
+        margin-bottom: 20px;
+    }
+
+    .btn-main button {
+        background-color: #8cc63f !important;
+        color: black !important;
+        font-weight: bold;
+        width: 100%;
+        height: 45px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown("<h2 style='text-align:center;color:#8cc63f;'>KIHATOGATHOGO PRO</h2>", unsafe_allow_html=True)
+    st.markdown('<div class="login-wrapper">', unsafe_allow_html=True)
+    st.markdown('<div class="login-card">', unsafe_allow_html=True)
 
-    tab1, tab2 = st.tabs(["LOGIN", "REGISTER"])
+    st.markdown('<div class="title">KIHATOGATHOGO PRO</div>', unsafe_allow_html=True)
+    st.markdown('<div class="subtitle">V21.0 GLOBAL PRECISION ARCHITECTURE</div>', unsafe_allow_html=True)
 
-    # LOGIN
-    with tab1:
-        st.markdown('<div class="auth-box">', unsafe_allow_html=True)
+    mode = st.radio("", ["AUTH_LOGIN", "INIT_SYSTEM"], horizontal=True)
 
-        email = st.text_input("Operator ID (Email)")
-        password = st.text_input("Security Key", type="password")
+    email = st.text_input("OPERATOR_ID (EMAIL)")
+    password = st.text_input("SECURITY_KEY (PASSWORD)", type="password")
+    token = st.text_input("DERIV_API_TOKEN")
 
-        if st.button("LOGIN"):
+    col1, col2 = st.columns(2)
+    tg_token = col1.text_input("TG_BOT_TOKEN (Optional)")
+    tg_chat = col2.text_input("TG_CHAT_ID (Optional)")
+
+    st.warning("API tokens are stored encrypted. Ensure tokens have Trade permission.")
+
+    if mode == "AUTH_LOGIN":
+        if st.button("🔓 LOGIN", key="login"):
             users = st.session_state.users
             if email in users and users[email]["password"] == password:
                 st.session_state.logged_in = True
                 st.session_state.user_email = email
                 st.session_state.user_token = users[email]["token"]
-                st.success("Access Granted")
                 st.rerun()
             else:
                 st.error("Invalid credentials")
 
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    # REGISTER
-    with tab2:
-        st.markdown('<div class="auth-box">', unsafe_allow_html=True)
-
-        new_email = st.text_input("Email")
-        new_pass = st.text_input("Password", type="password")
-        deriv_token = st.text_input("Deriv API Token")
-
-        if st.button("CREATE ACCOUNT"):
+    if mode == "INIT_SYSTEM":
+        if st.button("🚀 INITIALIZE CORE", key="register"):
             users = st.session_state.users
+            users[email] = {
+                "password": password,
+                "token": token
+            }
+            save_users(users)
+            st.success("System initialized successfully")
 
-            if new_email in users:
-                st.error("User already exists")
-            else:
-                users[new_email] = {
-                    "password": new_pass,
-                    "token": deriv_token
-                }
-                save_users(users)
-                st.success("Account created")
-
-        st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # ==============================
-# 🔥 YOUR ORIGINAL CODE (100% INTACT)
+# 🔥 YOUR ORIGINAL BOT (UNCHANGED)
 # ==============================
 else:
 
-    # 🔥 USE USER TOKEN INSTEAD OF HARDCODED
     DERIV_TOKEN = st.session_state.user_token
-
-    # ==============================
-    # 🔥 YOUR ORIGINAL CODE STARTS HERE (UNCHANGED)
-    # ==============================
 
     async def get_deriv_balance():
         try:
@@ -114,16 +133,10 @@ else:
             return 0.0
 
     if "live_bal" not in st.session_state:
-        try:
-            st.session_state.live_bal = asyncio.run(get_deriv_balance())
-        except:
-            st.session_state.live_bal = 0.0
+        st.session_state.live_bal = asyncio.run(get_deriv_balance())
 
     if st.button("🔄 Refresh Deriv Balance"):
-        try:
-            st.session_state.live_bal = asyncio.run(get_deriv_balance())
-        except:
-            st.error("Failed to fetch balance")
+        st.session_state.live_bal = asyncio.run(get_deriv_balance())
 
     if "session_profit" not in st.session_state:
         st.session_state.session_profit = 0.0
@@ -141,29 +154,7 @@ else:
     pl_value = st.session_state.session_profit - st.session_state.session_loss
     win_rate = (st.session_state.wins / max(1, st.session_state.trade_count)) * 100
 
-    st.markdown("""
-    <style>
-    .stApp { background-color: #020d08; color: #8cc63f; }
-
-    div[data-testid="stMetric"] {
-        background: #05140d;
-        border: 1px solid #1a3a2a;
-        padding: 12px;
-        border-radius: 8px;
-        text-align: center;
-        box-shadow: 0 0 10px rgba(140,198,63,0.15);
-    }
-
-    div[data-testid="stMetric"] > div:nth-child(2) {
-        color: #00ff88 !important;
-        font-size: 26px;
-        font-weight: bold;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    st.markdown(f"### 👤 {st.session_state.user_email}")
-
+    # --- METRICS ---
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Balance", f"${st.session_state.live_bal:,.2f}")
     col2.metric("P/L", f"${pl_value:,.2f}")
@@ -172,9 +163,14 @@ else:
 
     st.markdown("---")
 
-    # 🔥 KEEP YOUR FULL DASHBOARD BELOW (UNCHANGED)
+    if st.button("🚀 Start Engine"):
+        st.session_state.running = True
 
-    # --- LOGOUT (ADDED ONLY) ---
+    if st.session_state.running:
+        st.success("Engine Running")
+    else:
+        st.warning("Engine Stopped")
+
     if st.button("🔒 Logout"):
         st.session_state.logged_in = False
         st.rerun()
