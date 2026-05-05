@@ -4,6 +4,7 @@ from deriv_api import DerivAPI
 import json
 import os
 import random
+import requests
 
 st.set_page_config(page_title="Slimmy Pro V21.0", layout="wide")
 
@@ -27,19 +28,36 @@ if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
 # ==============================
+# TELEGRAM
+# ==============================
+def send_telegram(msg):
+    try:
+        token = st.session_state.get("tg_token")
+        chat_id = st.session_state.get("tg_chat")
+
+        if token and chat_id:
+            url = f"https://api.telegram.org/bot{token}/sendMessage"
+            requests.post(url, data={
+                "chat_id": chat_id,
+                "text": msg
+            })
+    except:
+        pass
+
+# ==============================
 # DERIV VALIDATION
 # ==============================
 async def validate_deriv(token):
     try:
         api = DerivAPI(app_id=1089)
-        auth = await api.authorize(token)
+        await api.authorize(token)
         await api.clear()
         return {"valid": True}
     except:
         return {"valid": False}
 
 # ==============================
-# LOGIN
+# LOGIN / REGISTER
 # ==============================
 if not st.session_state.logged_in:
 
@@ -56,6 +74,8 @@ if not st.session_state.logged_in:
             if email in users and users[email]["password"] == password:
                 st.session_state.logged_in = True
                 st.session_state.user_token = users[email]["token"]
+                st.session_state.tg_token = users[email].get("tg_token")
+                st.session_state.tg_chat = users[email].get("tg_chat")
                 st.rerun()
             else:
                 st.error("Invalid login")
@@ -63,32 +83,49 @@ if not st.session_state.logged_in:
     if mode == "INIT_SYSTEM":
         email = st.text_input("Email")
         password = st.text_input("Password", type="password")
-        token = st.text_input("Deriv Token")
+        token = st.text_input("Deriv API Token")
+        tg_token = st.text_input("Telegram Bot Token (optional)")
+        tg_chat = st.text_input("Telegram Chat ID (optional)")
 
         if st.button("REGISTER"):
             result = asyncio.run(validate_deriv(token))
+
             if result["valid"]:
                 users = st.session_state.users
-                users[email] = {"password": password, "token": token}
+                users[email] = {
+                    "password": password,
+                    "token": token,
+                    "tg_token": tg_token,
+                    "tg_chat": tg_chat
+                }
                 save_users(users)
                 st.success("Account created")
             else:
-                st.error("Invalid token")
+                st.error("Invalid Deriv token")
 
 # ==============================
-# DASHBOARD + BOT
+# DASHBOARD + TRADING ENGINE
 # ==============================
 else:
 
     DERIV_TOKEN = st.session_state.user_token
 
+    # =========================
+    # GET BALANCE
+    # =========================
     async def get_balance():
-        api = DerivAPI(app_id=1089)
-        await api.authorize(DERIV_TOKEN)
-        res = await api.balance()
-        await api.clear()
-        return float(res["balance"]["balance"])
+        try:
+            api = DerivAPI(app_id=1089)
+            await api.authorize(DERIV_TOKEN)
+            res = await api.balance()
+            await api.clear()
+            return float(res["balance"]["balance"])
+        except:
+            return 0.0
 
+    # =========================
+    # EXECUTE TRADE (REAL RESULT)
+    # =========================
     async def execute_trade(symbol, stake, direction):
         try:
             api = DerivAPI(app_id=1089)
@@ -107,13 +144,30 @@ else:
 
             pid = proposal["proposal"]["id"]
 
-            await api.buy({"buy": pid, "price": stake})
+            buy = await api.buy({"buy": pid, "price": stake})
+            contract_id = buy["buy"]["contract_id"]
+
+            # wait for contract result
+            await asyncio.sleep(65)
+
+            result = await api.proposal_open_contract({
+                "proposal_open_contract": 1,
+                "contract_id": contract_id
+            })
+
             await api.clear()
-            return True
+
+            profit = result["proposal_open_contract"]["profit"]
+
+            return profit
+
         except Exception as e:
             st.error(e)
-            return False
+            return 0
 
+    # =========================
+    # INIT STATE
+    # =========================
     if "balance" not in st.session_state:
         st.session_state.balance = asyncio.run(get_balance())
 
@@ -130,25 +184,29 @@ else:
         st.session_state.trades = 0
 
     # =========================
-    # TOP METRICS
+    # REFRESH BALANCE
     # =========================
-    c1, c2, c3, c4 = st.columns(4)
-
-    c1.metric("Balance", f"${st.session_state.balance:.2f}")
-    c2.metric("Trades", st.session_state.trades)
-    c3.metric("Wins", st.session_state.wins)
-    c4.metric("Losses", st.session_state.losses)
+    if st.button("🔄 Refresh Balance"):
+        st.session_state.balance = asyncio.run(get_balance())
 
     # =========================
-    # EXTRA METRICS
+    # METRICS
     # =========================
-    c5, c6, c7, c8, c9, c10 = st.columns(6)
-    c5.metric("Signal", "0/10")
-    c6.metric("Drawdown", "0")
-    c7.metric("Speed", "0ms")
-    c8.metric("API", "Connected")
-    c9.metric("Avg Trade", "0")
-    c10.metric("Risk", "0%")
+    col1, col2, col3, col4 = st.columns(4)
+
+    col1.metric("Balance", f"${st.session_state.balance:.2f}")
+    col2.metric("Trades", st.session_state.trades)
+    col3.metric("Wins", st.session_state.wins)
+    col4.metric("Losses", st.session_state.losses)
+
+    col5, col6, col7, col8, col9, col10 = st.columns(6)
+
+    col5.metric("Signal", "0/10")
+    col6.metric("Drawdown", "0")
+    col7.metric("Speed", "0ms")
+    col8.metric("API", "Connected")
+    col9.metric("Avg Trade", "0")
+    col10.metric("Risk", "0%")
 
     st.markdown("---")
 
@@ -184,24 +242,32 @@ else:
             st.warning("Stopped")
 
     # =========================
-    # AUTO TRADING
+    # AUTO TRADING ENGINE
     # =========================
     if st.session_state.running:
 
         signal = random.choice(["CALL", "PUT"])
 
-        result = asyncio.run(execute_trade("R_100", stake, signal))
+        profit = asyncio.run(execute_trade("R_100", stake, signal))
 
-        if result:
-            st.session_state.trades += 1
+        st.session_state.trades += 1
 
-            if signal == "CALL":
-                st.session_state.wins += 1
-            else:
-                st.session_state.losses += 1
+        if profit > 0:
+            st.session_state.wins += 1
+        else:
+            st.session_state.losses += 1
 
-        st.write(f"Trade: {signal}")
+        # update balance
+        st.session_state.balance = asyncio.run(get_balance())
 
+        # telegram alert
+        send_telegram(f"{signal} | Profit: {profit}")
+
+        st.success(f"Trade {signal} → Profit: {profit}")
+
+    # =========================
+    # LOGOUT
+    # =========================
     if st.button("Logout"):
         st.session_state.logged_in = False
         st.rerun()
