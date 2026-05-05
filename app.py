@@ -1,118 +1,119 @@
 import streamlit as st
 import pandas as pd
-import asyncio
 import time
 import requests
 import json
 import os
+import asyncio
 from deriv_api import DerivAPI
 
-# --- 1. UI STYLING ---
-st.set_page_config(page_title="KihatoGathogo Pro V21.0", layout="wide") 
+# --- 1. UI STYLING (TERMINAL THEME) ---
+st.set_page_config(page_title="Slimmy Pro V21.0", layout="wide") 
+
 st.markdown("""
     <style>
-    .main { background-color: #041a12; }
-    .bank-header {
-        background: linear-gradient(135deg, #072b1d 0%, #155e46 100%);
-        padding: 25px; border-radius: 20px;
-        text-align: center; border-bottom: 3px solid #8cc63f;
-        margin-bottom: 20px;
+    /* Dark Green Terminal Theme */
+    .stApp { background-color: #020d08; color: #8cc63f; }
+    
+    /* Top Navigation Bar */
+    .top-nav {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 10px 20px; background-color: #05140d; border-bottom: 1px solid #1a3a2a;
+        margin-bottom: 20px; font-family: 'Courier New', Courier, monospace;
     }
+    
+    /* Metric Cards */
     div[data-testid="stMetric"] {
-        background: rgba(140, 198, 63, 0.1);
-        border: 1px solid #8cc63f;
-        border-radius: 15px; padding: 15px;
+        background-color: #05140d; border: 1px solid #1a3a2a;
+        padding: 15px; border-radius: 5px; text-align: left;
     }
-    .stDownloadButton button {
-        width: 100%;
-        background-color: #8cc63f !important;
-        color: #041a12 !important;
-        font-weight: bold !important;
+    label[data-testid="stMetricLabel"] { color: #4e805d !important; text-transform: uppercase; font-size: 12px; }
+    div[data-testid="stMetricValue"] { color: #8cc63f !important; font-family: 'Courier New', monospace; }
+
+    /* Control Panel Styling */
+    .control-box {
+        background-color: #05140d; padding: 20px; border-radius: 5px;
+        border-left: 3px solid #8cc63f;
     }
+    
+    /* Buttons */
+    .stButton>button {
+        width: 100%; border-radius: 2px; border: 1px solid #8cc63f;
+        background-color: transparent; color: #8cc63f; transition: 0.3s;
+    }
+    .stButton>button:hover { background-color: #8cc63f; color: #020d08; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. PERMANENT DATA & STATE ---
-DB_FILE = "slimmy_vault_v18.json"
-def load_db():
-    if os.path.exists(DB_FILE):
-        try:
-            with open(DB_FILE, "r") as f: return json.load(f)
-        except: return {}
-    return {}
-def save_db(data):
-    with open(DB_FILE, "w") as f: json.dump(data, f)
-
-if "db" not in st.session_state: st.session_state.db = load_db()
-if "trades" not in st.session_state: st.session_state.trades = []
-if "running" not in st.session_state: st.session_state.running = False
-if "wins" not in st.session_state: st.session_state.wins = 0
-if "losses" not in st.session_state: st.session_state.losses = 0
-if "live_bal" not in st.session_state: st.session_state.live_bal = 0.0
+# --- 2. TOP NAVIGATION ---
 if "user_session" not in st.session_state: st.session_state.user_session = None
+user_email = st.session_state.user_session.get('email', 'DISCONNECTED') if st.session_state.user_session else "GUEST"
 
-def send_tele(msg, token, cid):
-    if token and cid:
-        try: requests.get(f"https://api.telegram.org/bot{token}/sendMessage?chat_id={cid}&text={msg}")
-        except: pass
+st.markdown(f"""
+    <div class="top-nav">
+        <div style="font-weight:bold; letter-spacing:2px;">SLIMMY <span style="color:white;">PRO V21.0</span></div>
+        <div style="display: flex; gap: 20px; font-size: 13px;">
+            <span>📉 TERMINAL</span> <span>🔄 LEDGER</span> <span>📖 SETUP GUIDE</span>
+        </div>
+        <div style="font-size: 12px;">
+            <span style="color:#4e805d;">● {user_email}</span> | <span style="color:#8cc63f;">DERIV:OK</span> 
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-# --- 3. HEADER & METRICS ---
-st.markdown("<div class='bank-header'><h2 style='color:white; margin:0;'>SLIMMY PRO V21.0</h2><p style='color:#8cc63f; margin:0;'>GLOBAL PRECISION ARCHITECTURE</p></div>", unsafe_allow_html=True)
+# --- 3. FOUR-COLUMN METRIC ROW ---
+m1, m2, m3, m4 = st.columns(4)
+m1.metric("BALANCE", f"${st.session_state.get('live_bal', 0.00):,.2f}")
+m2.metric("SESSION P/L", "$0.00")
+m3.metric("WIN RATE", "0.0%")
+m4.metric("WIN STREAK", "0W / 0L")
 
-total_pl = round(sum([t['Profit'] for t in st.session_state.trades]), 2)
-total_t = st.session_state.wins + st.session_state.losses
-win_rate = (st.session_state.wins / total_t * 100) if total_t > 0 else 0
+st.markdown("<br>", unsafe_allow_html=True)
 
-m1, m2, m3 = st.columns(3)
-with m1: st.metric("💳 BALANCE", f"${round(st.session_state.live_bal, 2):,.2f}")
-with m2: st.metric("💰 SESSION P/L", f"${total_pl:.2f}")
-with m3: st.metric("🎯 WIN RATE", f"{win_rate:.0f}%")
+# --- 4. MAIN INTERFACE (CHART GRID & ENGINE CONTROL) ---
+col_left, col_right = st.columns([3, 1])
 
-st.markdown("---")
+with col_left:
+    # Top Row: VOL 100 vs XAU/USD
+    t1, t2 = st.columns(2)
+    with t1:
+        st.markdown("<div style='font-size:10px; color:#4e805d;'>VOL 100 1S INDEX | DERIV_API</div>", unsafe_allow_html=True)
+        st.components.v1.html('<iframe src="https://tradingview.binary.com/v1.3.10/main.html?symbol=1HZ100V&theme=black" height="400" width="100%"></iframe>', height=400)
+    with t2:
+        st.markdown("<div style='font-size:10px; color:#4e80 #4e805d;'>XAU/USD | OANDA_FEED</div>", unsafe_allow_html=True)
+        st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=OANDA%3AXAUUSD&interval=1&theme=dark" height="400" width="100%"></iframe>', height=400)
 
-# --- 4. 📈 LIVE MARKET DASHBOARD ---
-st.markdown("### 📈 Live Market Dashboard")
-col_main_1, col_main_2 = st.columns(2)
-with col_main_1:
-    st.write("**Gold (XAU/USD)**")
-    st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=OANDA%3AXAUUSD&interval=1&theme=dark" height="350" width="100%"></iframe>', height=350)
-with col_main_2:
-    st.write("**Volatility 100 (1s) Index**")
-    st.components.v1.html('<iframe src="https://tradingview.binary.com/v1.3.10/main.html?symbol=1HZ100V&theme=black" height="350" width="100%"></iframe>', height=350)
+    # Bottom Row: Smaller Market Mini-Charts
+    b1, b2, b3 = st.columns(3)
+    with b1: st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=BINANCE:BTCUSDT&interval=1&theme=dark" height="200" width="100%"></iframe>', height=200)
+    with b2: st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=FX_IDC:GBPJPY&interval=1&theme=dark" height="200" width="100%"></iframe>', height=200)
+    with b3: st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=FX:EURUSD&interval=1&theme=dark" height="200" width="100%"></iframe>', height=200)
 
-col_sub_1, col_sub_2, col_sub_3 = st.columns(3)
-with col_sub_1:
-    st.write("**EUR/USD**")
-    st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=FX%3AEURUSD&interval=1&theme=dark" height="220" width="100%"></iframe>', height=220)
-with col_sub_2:
-    st.write("**USD/JPY**")
-    st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=FX%3AUSDJPY&interval=1&theme=dark" height="220" width="100%"></iframe>', height=220)
-with col_sub_3:
-    st.write("**Bitcoin (BTC/USD)**")
-    st.components.v1.html('<iframe src="https://s.tradingview.com/widgetembed/?symbol=BINANCE%3ABTCUSDT&interval=1&theme=dark" height="220" width="100%"></iframe>', height=220)
+with col_right:
+    st.markdown("### ⚙️ ENGINE_CONTROL")
+    
+    # Status Board
+    st.markdown("""
+        <div style="background:#071a11; padding:15px; border:1px solid #1a3a2a; font-size:11px;">
+            <span style="color:red;">●</span> Engine Idle - Ready for batch<br>
+            <span style="color:#4e805d;">0W/0L | Session +$0.00</span>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # Inputs
+    stake = st.number_input("STAKE AMOUNT ($)", value=10, step=1)
+    stop_loss = st.number_input("HARD STOP LOSS ($)", value=50, step=1)
+    
+    st.markdown("---")
+    st.write("**PRECISION GUARDS**")
+    
+    min_signal = st.slider("MIN SIGNAL SCORE (8/10)", 8, 10, 8)
+    pause_loss = st.number_input("PAUSE AFTER (LOSSES)", value=5)
+    profit_target = st.number_input("PROFIT TARGET ($)", value=0)
+    max_trades = st.number_input("MAX TRADES (0-∞)", value=10)
+    
+    if st.button("▶️ START SNIPER"):
+        st.success("ENGINE ENGAGED")
 
-st.markdown("---")
-
-# --- 5. TRADE HISTORY & EXPORT ---
-if st.session_state.trades:
-    st.markdown("### 📥 Session Trade History")
-    hist_df = pd.DataFrame(st.session_state.trades)
-    st.table(hist_df.tail(10))
-    csv_data = hist_df.to_csv(index=False).encode('utf-8')
-    st.download_button(label="DOWNLOAD TRADE LOG (CSV)", data=csv_data, file_name="Slimmy_Pro_V21_Log.csv", mime='text/csv')
-
-# --- 6. SIDEBAR & LOGIN ---
-st.sidebar.title("👥 User Center")
-choice = st.sidebar.selectbox("Action", ["Login", "Register"])
-
-if choice == "Login":
-    l_email = st.sidebar.text_input("Email")
-    l_pass = st.sidebar.text_input("Password", type="password")
-    if st.sidebar.button("Unlock Dashboard"):
-        if l_email in st.session_state.db and st.session_state.db[l_email]["pass"] == l_pass:
-            st.session_state.user_session = st.session_state.db[l_email]
-            st.sidebar.success("✅ Access Accepted. Welcome back.")
-            time.sleep(1)
-            st.rerun()
-        else:
-            st.sidebar.error("❌ ...
+# --- 5. DATA LOGIC (HIDDEN) ---
+# [Include your load_db and save_db functions here]
