@@ -8,7 +8,7 @@ import os
 st.set_page_config(page_title="Slimmy Pro V21.0", layout="wide")
 
 # ==============================
-# 🔐 DATABASE (UNCHANGED)
+# 🔐 DATABASE
 # ==============================
 DB_FILE = "users_db.json"
 
@@ -27,7 +27,7 @@ if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
 # ==============================
-# 🔥 ADD: DERIV VALIDATION (NEW ONLY)
+# 🔥 ADD: DERIV VALIDATION
 # ==============================
 async def validate_deriv(token):
     try:
@@ -45,7 +45,7 @@ async def validate_deriv(token):
         return {"valid": False, "error": str(e)}
 
 # ==============================
-# 🔐 LOGIN SCREEN (FIXED LOGIC ONLY)
+# 🔥 LOGIN SCREEN (FIXED)
 # ==============================
 if not st.session_state.logged_in:
 
@@ -94,8 +94,8 @@ if not st.session_state.logged_in:
     # ================= LOGIN =================
     if mode == "AUTH_LOGIN":
 
-        email = st.text_input("OPERATOR_ID (EMAIL)")
-        password = st.text_input("SECURITY_KEY (PASSWORD)", type="password")
+        email = st.text_input("OPERATOR_ID (EMAIL)", key="login_email")
+        password = st.text_input("SECURITY_KEY (PASSWORD)", type="password", key="login_pass")
 
         if st.button("🔓 ESTABLISH UPLINK"):
 
@@ -114,9 +114,9 @@ if not st.session_state.logged_in:
     # ================= REGISTER =================
     if mode == "INIT_SYSTEM":
 
-        email = st.text_input("OPERATOR_ID (EMAIL)")
-        password = st.text_input("SECURITY_KEY (PASSWORD)", type="password")
-        token = st.text_input("DERIV_API_TOKEN")
+        email = st.text_input("OPERATOR_ID (EMAIL)", key="reg_email")
+        password = st.text_input("SECURITY_KEY (PASSWORD)", type="password", key="reg_pass")
+        token = st.text_input("DERIV_API_TOKEN", key="reg_token")
 
         col1, col2 = st.columns(2)
         tg_token = col1.text_input("TG_BOT_TOKEN (Optional)")
@@ -138,18 +138,20 @@ if not st.session_state.logged_in:
                     "password": password,
                     "token": token,
                     "loginid": result["loginid"],
-                    "currency": result["currency"]
+                    "currency": result["currency"],
+                    "tg_bot": tg_token,
+                    "tg_chat": tg_chat
                 }
 
                 save_users(users)
 
-                st.success(f"Account linked: {result['loginid']}")
+                st.success(f"Account linked: {result['loginid']} ({result['currency']})")
 
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ==============================
-# 🔥 YOUR ORIGINAL BOT (100% UNCHANGED)
+# 🔥 YOUR ORIGINAL BOT (UNCHANGED)
 # ==============================
 else:
 
