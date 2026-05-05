@@ -154,6 +154,7 @@ if not st.session_state.logged_in:
 # 🔥 YOUR ORIGINAL BOT (UNCHANGED)
 # ==============================
 else:
+else:
 
     DERIV_TOKEN = st.session_state.user_token
 
@@ -167,12 +168,18 @@ else:
         except:
             return 0.0
 
+    # =========================
+    # 🔄 BALANCE LOAD
+    # =========================
     if "live_bal" not in st.session_state:
         st.session_state.live_bal = asyncio.run(get_deriv_balance())
 
     if st.button("🔄 Refresh Deriv Balance"):
         st.session_state.live_bal = asyncio.run(get_deriv_balance())
 
+    # =========================
+    # 📊 STATS INIT
+    # =========================
     if "session_profit" not in st.session_state:
         st.session_state.session_profit = 0.0
     if "session_loss" not in st.session_state:
@@ -189,22 +196,89 @@ else:
     pl_value = st.session_state.session_profit - st.session_state.session_loss
     win_rate = (st.session_state.wins / max(1, st.session_state.trade_count)) * 100
 
+    # =========================
+    # 🎨 COLOR LOGIC
+    # =========================
+    def color(val):
+        return "lime" if val >= 0 else "red"
+
+    # =========================
+    # 🔝 TOP METRICS
+    # =========================
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Balance", f"${st.session_state.live_bal:,.2f}")
-    col2.metric("P/L", f"${pl_value:,.2f}")
-    col3.metric("Win Rate", f"{win_rate:.1f}%")
-    col4.metric("Streak", f"{st.session_state.wins}W / {st.session_state.losses}L")
+
+    col1.markdown(f"<h3>Balance</h3><h2 style='color:lime;'>${st.session_state.live_bal:,.2f}</h2>", unsafe_allow_html=True)
+    col2.markdown(f"<h3>P/L</h3><h2 style='color:{color(pl_value)};'>${pl_value:,.2f}</h2>", unsafe_allow_html=True)
+    col3.markdown(f"<h3>Win Rate</h3><h2>{win_rate:.1f}%</h2>", unsafe_allow_html=True)
+    col4.markdown(f"<h3>Streak</h3><h2>{st.session_state.wins}W / {st.session_state.losses}L</h2>", unsafe_allow_html=True)
+
+    # =========================
+    # ➕ EXTRA METRICS (YOU ASKED)
+    # =========================
+    col5, col6, col7, col8, col9, col10 = st.columns(6)
+
+    col5.metric("🧠 Signal Strength", "0 / 10", "+0")
+    col6.metric("📉 Drawdown", "$0.00", "0%")
+    col7.metric("⚡ Exec Speed", "0 ms")
+    col8.metric("📡 API Status", "Connected")
+    col9.metric("🧮 Avg Trade", "$0.00")
+    col10.metric("🎲 Risk/Trade", "0%")
 
     st.markdown("---")
 
-    if st.button("🚀 Start Engine"):
-        st.session_state.running = True
+    # =========================
+    # 🧠 MAIN LAYOUT
+    # =========================
+    left, right = st.columns([3,1])
 
-    if st.session_state.running:
-        st.success("Engine Running")
-    else:
-        st.warning("Engine Stopped")
+    with left:
 
+        st.markdown("### 📊 MARKET SIGNAL SCANNER")
+
+        assets = [
+            "Vol 100 (1s)",
+            "Vol 75 (1s)",
+            "Vol 25 (1s)",
+            "Vol 10 (1s)",
+            "Gold XAU/USD",
+            "Bitcoin BTC/USD",
+            "GBP/JPY"
+        ]
+
+        for asset in assets:
+            c1, c2 = st.columns([3,1])
+            c1.markdown(f"**{asset}**  \n_STREAK + STRUCTURE_")
+            c2.markdown("—")
+
+        st.info("Start the engine to see live scores")
+
+    with right:
+
+        st.markdown("### ⚙️ ENGINE CONTROL")
+
+        stake = st.number_input("Stake ($)", value=10.0)
+        stop_loss = st.number_input("Stop Loss ($)", value=50.0)
+        max_trades = st.number_input("Max Trades", value=10)
+
+        if not st.session_state.running:
+            if st.button("🚀 Start Engine"):
+                st.session_state.running = True
+        else:
+            if st.button("🛑 Stop Engine"):
+                st.session_state.running = False
+
+        if st.session_state.running:
+            st.success("Engine Running")
+        else:
+            st.warning("Engine Stopped")
+
+    st.markdown("---")
+
+    # =========================
+    # 🔒 LOGOUT
+    # =========================
     if st.button("🔒 Logout"):
         st.session_state.logged_in = False
         st.rerun()
+    
+    
