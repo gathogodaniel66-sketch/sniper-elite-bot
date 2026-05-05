@@ -23,58 +23,54 @@ if "running" not in st.session_state:
 pl_value = st.session_state.session_profit - st.session_state.session_loss
 win_rate = (st.session_state.wins / max(1, st.session_state.trade_count)) * 100
 
-# --- STYLING ---
+# --- ORIGINAL DEEP GREEN STYLE (RESTORED + ENHANCED ONLY) ---
 st.markdown("""
 <style>
-.stApp { background-color: #020d08; color: #8cc63f; }
 
-div[data-testid="stMetric"] {
-    background: linear-gradient(145deg, #062e1c, #041f14);
-    border: 1px solid #1f7a4c;
-    box-shadow: 0 0 12px rgba(140, 198, 63, 0.25);
-    padding: 14px;
-    border-radius: 10px;
-    text-align: center;
+/* BACKGROUND */
+.stApp { 
+    background-color: #020d08; 
+    color: #8cc63f; 
 }
 
+/* 🔥 KEEP ORIGINAL DARK GREEN (NO OVERRIDE) */
+div[data-testid="stMetric"] {
+    background: #05140d !important;   /* ORIGINAL COLOR RESTORED */
+    border: 1px solid #1a3a2a !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+    text-align: center;
+    
+    /* ONLY ADD THIS (no color change) */
+    box-shadow: 0 0 10px rgba(140, 198, 63, 0.15);
+}
+
+/* ✨ HOVER (SAFE ADD) */
+div[data-testid="stMetric"]:hover {
+    box-shadow: 0 0 18px rgba(140, 198, 63, 0.35);
+    transform: scale(1.02);
+}
+
+/* 🟢 VALUE TEXT (FORCE GREEN) */
 div[data-testid="stMetric"] > div:nth-child(2) {
     color: #00ff88 !important;
     font-size: 26px;
     font-weight: bold;
 }
 
+/* LABEL TEXT */
+div[data-testid="stMetric"] label {
+    color: #8cc63f !important;
+    font-weight: 600;
+}
+
+/* BUTTON */
 .stButton>button {
     background-color: #8cc63f !important;
     color: black !important;
     font-weight: bold;
     width: 100%;
 }
-
-.scanner-box {
-    border: 1px solid #1f7a4c;
-    border-radius: 10px;
-    padding: 15px;
-    background: #041f14;
-}
-
-.signal-row {
-    display: flex;
-    justify-content: space-between;
-    padding: 8px 0;
-    border-bottom: 1px solid #0a3d2a;
-}
-
-.tag {
-    padding: 3px 8px;
-    border-radius: 5px;
-    font-size: 11px;
-    font-weight: bold;
-}
-
-.synth { background:#0b3d91; color:white; }
-.metal { background:#b59f00; color:black; }
-.crypto { background:#c46c00; color:black; }
-.forex { background:#5c2ca0; color:white; }
 
 </style>
 """, unsafe_allow_html=True)
@@ -131,7 +127,6 @@ with right:
 
 st.markdown("---")
 
-# --- BOTTOM MARKETS ---
 b1, b2, b3 = st.columns(3)
 
 with b1:
@@ -154,25 +149,3 @@ with b3:
         '<iframe src="https://s.tradingview.com/widgetembed/?symbol=OANDA:EURUSD&interval=5&theme=dark" height="250" width="100%"></iframe>',
         height=250
     )
-
-# ==============================
-# 🔥 NEW: MARKET SIGNAL SCANNER
-# ==============================
-
-st.markdown("---")
-st.markdown("### 📡 MARKET SIGNAL SCANNER")
-
-st.markdown("""
-<div class="scanner-box">
-
-<div class="signal-row"><span><span class="tag synth">SYNTH</span> Vol 100 (1s)</span><span>—</span></div>
-<div class="signal-row"><span><span class="tag synth">SYNTH</span> Vol 75 (1s)</span><span>—</span></div>
-<div class="signal-row"><span><span class="tag synth">SYNTH</span> Vol 25 (1s)</span><span>—</span></div>
-<div class="signal-row"><span><span class="tag synth">SYNTH</span> Vol 10 (1s)</span><span>—</span></div>
-
-<div class="signal-row"><span><span class="tag metal">METAL</span> Gold XAU/USD</span><span>—</span></div>
-<div class="signal-row"><span><span class="tag crypto">CRYPTO</span> BTC/USD</span><span>—</span></div>
-<div class="signal-row"><span><span class="tag forex">FOREX</span> GBP/JPY</span><span>—</span></div>
-
-</div>
-""", unsafe_allow_html=True)
